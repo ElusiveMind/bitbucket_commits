@@ -19,13 +19,13 @@ function bitbucket_commits_schema() {
         'not null' => FALSE,
       ),
     ),
-    'primary key' => array('commit_date'),
+    'unique' => array('commit_date'),
   );
   $schema['commits'] = array(
     'fields'=> array(
       'cid' => array(
         'type' => 'varchar',
-        'length' => 32,
+        'length' => 50,
         'not null' => FALSE,
       ),
       'commit_date' => array(
@@ -45,7 +45,7 @@ function bitbucket_commits_schema() {
         'not null' => FALSE,
       ),
     ),
-    'primary key' => array('cid'),
+    'unique' => array('cid'),
   );
   return $schema;
 }

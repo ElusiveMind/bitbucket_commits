@@ -8,8 +8,9 @@ function bitbucket_commits_menu() {
   $items['admin/config/development/bitbucket'] = array(
     'title' => 'Bitbucket Settings',
     'description' => t('Settings for accessing BitBucket API as well as repositories to pull data from'),
-    'page callback' => 'bitbucket_commits_settings_form',
-    'access callback' => 'user_access';
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('bitbucket_commits_settings_form'),
+    'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
   );
   $items['bitbucket'] = array(
@@ -26,8 +27,9 @@ function bitbucket_commits_menu() {
  */
 function bitbucket_commits_permission() {
   return array(
-    'access bitbucket settings' =>
-    'title' => 'Settings',
+    'access bitbucket settings' => array(
+      'title' => 'Settings',
+    ),
   );
 }
 
@@ -46,7 +48,7 @@ function bitbucket_commits_settings_form($form, &$form_state) {
     '#maxlength' => 64,
     '#default_value' => variable_get('bitbucket_username', NULL),
   );
-  $form['bitbucket_repositories'] => array(
+  $form['bitbucket_repositories'] = array(
     '#title' => 'BitBucket Repositories',
     '#description' => t('One repository per line. Prefix with username/reponame'),
     '#type' => 'textarea',
@@ -62,7 +64,10 @@ function bitbucket_commits_cron() {
 
 function _bitbucket_commits_retrieve() {
   $repos = variable_get('bitbucket_repositories', FALSE);
+  $username = variable_get('bitbucket_username', NULL);
+  $password = variable_get('bitbucket_password', NULL);
   if (empty($repos)) {
+    die($repos);
     return FALSE;
   }
 
@@ -71,7 +76,7 @@ function _bitbucket_commits_retrieve() {
     $url ='https://api.bitbucket.org/2.0/repositories/' . $repo. '/commits';
     do {   
       $ch = curl_init();
-      curl_setopt($ch, CURLOPT_URL, $URL);
+      curl_setopt($ch, CURLOPT_URL, $url);
       curl_setopt($ch, CURLOPT_TIMEOUT, 30); //timeout after 30 seconds
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
       curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
@@ -82,22 +87,47 @@ function _bitbucket_commits_retrieve() {
       curl_close ($ch);
 
       $json = json_decode($result);
+      if (count($json->values) > 0) {
+        foreach ($json->values as $commit) {
+          $cid = $commit->hash;
+          $project = $commit->repository->full_name;
+          $message = $commit->message;
+          $cdate = substr($commit->date, 0, 10) . ' 00:00:00';
 
+          $centry = array(
+            'cid' => $cid,
+            'commit_message' => addslashes($message),
+            'commit_date' => $cdate,
+            'project' => $project,
+          );
 
+          drupal_write_record('commits', $centry);
 
-
-
+          $commits = db_select('commits_digest', 'cd')
+                      ->fields('cd')
+                      ->condition('commit_date', $cdate)
+                      ->execute();
+          if ($commits->rowCount() > 0) {
+            $commits_data = $commits->fetchObject();
+            $commits_data->commits++;
+            $centry = array(
+              'commit_date' => $cdate,
+              'commits' => $commits_data->commits,
+            );
+            drupal_write_record('commits_digest', $centry, array('commit_date'));
+          }
+          else {
+           $centry = array(
+              'commit_date' => $cdate,
+              'commits' => 1,
+            );
+            drupal_write_record('commits_digest', $centry);
+          }
+        }
+      }
       if (!empty($data->next)) {
         $url = $data->next;
       }
-
     } while(!empty($data->next));
   }
-
-
-
-
-
-
-
 }
