@@ -1,0 +1,103 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function bitbucket_commits_menu() {
+  $items = array();
+  $items['admin/config/development/bitbucket'] = array(
+    'title' => 'Bitbucket Settings',
+    'description' => t('Settings for accessing BitBucket API as well as repositories to pull data from'),
+    'page callback' => 'bitbucket_commits_settings_form',
+    'access callback' => 'user_access';
+    'access arguments' => array('access bitbucket settings'),
+  );
+  $items['bitbucket'] = array(
+    'title' => 'Bitbucket Statistics',
+    'page callback' => 'bitbucket_commits_statistics',
+    'access callback' => 'user_access',
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function bitbucket_commits_permission() {
+  return array(
+    'access bitbucket settings' =>
+    'title' => 'Settings',
+  );
+}
+
+function bitbucket_commits_settings_form($form, &$form_state) {
+  $form['bitbucket_username'] = array(
+    '#title' => 'BitBucket Username',
+    '#type' => 'textfield',
+    '#size' => 64,
+    '#maxlength' => 64,
+    '#default_value' => variable_get('bitbucket_username', NULL),
+  );
+  $form['bitbucket_password'] = array(
+    '#title' => 'BitBucket Password',
+    '#type' => 'password',
+    '#size' => 64,
+    '#maxlength' => 64,
+    '#default_value' => variable_get('bitbucket_username', NULL),
+  );
+  $form['bitbucket_repositories'] => array(
+    '#title' => 'BitBucket Repositories',
+    '#description' => t('One repository per line. Prefix with username/reponame'),
+    '#type' => 'textarea',
+    '#default_value' => variable_get('bitbucket_repositories', NULL),
+  );
+
+  return system_settings_form($form);
+}
+
+function bitbucket_commits_cron() {
+  _bitbucket_commits_retrieve();
+}
+
+function _bitbucket_commits_retrieve() {
+  $repos = variable_get('bitbucket_repositories', FALSE);
+  if (empty($repos)) {
+    return FALSE;
+  }
+
+  $repos = explode("\n", $repos);
+  foreach($repos as $repo) {
+    $url ='https://api.bitbucket.org/2.0/repositories/' . $repo. '/commits';
+    do {   
+      $ch = curl_init();
+      curl_setopt($ch, CURLOPT_URL, $URL);
+      curl_setopt($ch, CURLOPT_TIMEOUT, 30); //timeout after 30 seconds
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+      curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+      curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
+      $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);   //get status code
+      $result=curl_exec ($ch);
+      curl_close ($ch);
+
+      $json = json_decode($result);
+
+
+
+
+
+      if (!empty($data->next)) {
+        $url = $data->next;
+      }
+
+    } while(!empty($data->next));
+  }
+
+
+
+
+
+
+
+}
