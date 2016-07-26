@@ -33,6 +33,9 @@ function bitbucket_commits_permission() {
   );
 }
 
+/**
+ * Administrative settings callback form.
+ */
 function bitbucket_commits_settings_form($form, &$form_state) {
   $form['bitbucket_username'] = array(
     '#title' => 'BitBucket Username',
@@ -58,41 +61,63 @@ function bitbucket_commits_settings_form($form, &$form_state) {
   return system_settings_form($form);
 }
 
+/**
+ * Implements hook_cron().
+ */
 function bitbucket_commits_cron() {
   _bitbucket_commits_retrieve();
 }
 
+/**
+ * Retrieve all of the commits configured from bitbucket.
+ */
 function _bitbucket_commits_retrieve() {
   $repos = variable_get('bitbucket_repositories', FALSE);
   $username = variable_get('bitbucket_username', NULL);
   $password = variable_get('bitbucket_password', NULL);
+  
   if (empty($repos)) {
-    die($repos);
     return FALSE;
   }
 
   $repos = explode("\n", $repos);
   foreach($repos as $repo) {
-    $url ='https://api.bitbucket.org/2.0/repositories/' . $repo. '/commits';
+    if (empty($repo)) {
+      continue;
+    }
+    $url = 'https://api.bitbucket.org/2.0/repositories/' . trim($repo) . '/commits';
     do {   
       $ch = curl_init();
       curl_setopt($ch, CURLOPT_URL, $url);
       curl_setopt($ch, CURLOPT_TIMEOUT, 30); //timeout after 30 seconds
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
       curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
       curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
       $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);   //get status code
-      $result=curl_exec ($ch);
-      curl_close ($ch);
+      $result = curl_exec ($ch);
+      curl_close($ch);
 
-      $json = json_decode($result);
+      $json = json_decode($result);      
+      if (empty($json->values)) {
+        drupal_set_message('No repository named ' . $repo . '.', 'error');
+        break;
+      }
       if (count($json->values) > 0) {
         foreach ($json->values as $commit) {
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
           $cdate = substr($commit->date, 0, 10) . ' 00:00:00';
+          
+          // If we already have this hash, then continue to the next one.
+          $check = db_select('commits', 'c')
+                    ->fields('c')
+                    ->condition('cid', $cid)
+                    ->execute();
+          if ($check->rowCount() > 0) {
+            break;
+          }
 
           $centry = array(
             'cid' => $cid,
@@ -100,7 +125,6 @@ function _bitbucket_commits_retrieve() {
             'commit_date' => $cdate,
             'project' => $project,
           );
-
           drupal_write_record('commits', $centry);
 
           $commits = db_select('commits_digest', 'cd')
