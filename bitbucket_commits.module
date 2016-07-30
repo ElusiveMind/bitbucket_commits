@@ -7,18 +7,26 @@ function bitbucket_commits_menu() {
   $items = array();
   $items['admin/config/development/bitbucket'] = array(
     'title' => 'Bitbucket Settings',
-    'description' => t('Settings for accessing BitBucket API as well as repositories to pull data from'),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('bitbucket_commits_settings_form'),
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
   );
-  $items['bitbucket'] = array(
-    'title' => 'Bitbucket Statistics',
-    'page callback' => 'bitbucket_commit_year_box_graph',
-    'page arguments' => array('2016-07-28'),
+  $items['admin/config/development/bitbucket/api'] = array(
+    'title' => 'API Settings',
+    'description' => t('Settings for accessing BitBucket API as well as repositories to pull data from.'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('bitbucket_commits_api_settings_form'),
     'access callback' => 'user_access',
-    'access arguments' => array('access content'),
+    'access arguments' => array('access bitbucket settings'),
+  );
+  $items['admin/config/development/bitbucket/display'] = array(
+    'title' => 'Display Settings',
+    'description' => t('Configure colors and display configuration settings for statistic graphs.'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('bitbucket_commits_display_settings_form'),
+    'access callback' => 'user_access',
+    'access arguments' => array('access bitbucket settings'),
   );
   return $items;
 }
@@ -35,9 +43,9 @@ function bitbucket_commits_permission() {
 }
 
 /**
- * Administrative settings callback form.
+ * API settings callback form.
  */
-function bitbucket_commits_settings_form($form, &$form_state) {
+function bitbucket_commits_api_settings_form($form, &$form_state) {
   $form['bitbucket_username'] = array(
     '#title' => 'BitBucket Username',
     '#type' => 'textfield',
@@ -68,10 +76,15 @@ function bitbucket_commits_settings_form($form, &$form_state) {
     '#title' => 'Submit',
     '#value' => 'Submit',
   );
-  return system_settings_form($form);
+  return $form;
 }
 
-function bitbucket_commits_settings_form_submit($form, &$form_state) {
+/**
+ * Submit callback for our API settings form. Handles password input so that if the password
+ * field is empty and a password is already assigned, then it maintains the previously given
+ * password. Also processes other api configuration values.
+ */
+function bitbucket_commits_api_settings_form_submit($form, &$form_state) {
   $current_password = variable_get('bitbucket_password', NULL);
   if ((!empty($current_password) && !empty($form_state['values']['bitbucket_password'])) || (empty($current_password))) {
     variable_set('bitbucket_password', $form_state['values']['bitbucket_password']);
@@ -86,9 +99,41 @@ function bitbucket_commits_settings_form_submit($form, &$form_state) {
     variable_set('bitbucket_repositories', $form_state['values']['bitbucket_repositories']);
     variable_set('bitbucket_repositories_line_numbers', $form_state['values']['bitbucket_repositories_line_numbers']);
     variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);    
-    drupal_set_message('BitBucket settings successfully updated.', 'status');
-    drupal_goto('admin/config/development/bitbucket');
+    drupal_set_message('BitBucket API settings successfully updated.', 'status');
+    drupal_goto('admin/config/development/bitbucket/api');
   }
+}
+
+/**
+ * Display settings administrative form.
+ */
+function bitbucket_commits_display_settings_form($form, &$form_state) {
+  $form['bitbucket_activity_color_scheme'] = array(
+    '#type' => 'select',
+    '#title' => 'Color Scheme',
+    '#description' => 'Select a color scheme for the contribution activity graph.',
+    '#options' => array(
+      'grey' => t('Grey'),
+      'red' => t('Red'),
+      'green' => t('Green'),
+      'blue' => t('Blue'),
+      'yellow' => t('Yellow'),
+      'orange' => t('Orange'),
+      'brown' => t('Brown'),
+      'purple' => t('Purple'),
+      'pink' => t('Pink'),
+      'custom' => t('Custom (must provide hex values)'),
+    ),
+    '#default_value' => variable_get('bitbucket_activity_color_scheme', 'green'),
+    '#required' => TRUE,
+  );
+  return $form;
+}
+
+/**
+ * Submit callback for the displays administrative form.
+ */
+function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
 }
 
 /**
@@ -106,11 +151,11 @@ function _bitbucket_commits_retrieve() {
   $repos_line = variable_get('bitbucket_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_username', NULL);
   $password = variable_get('bitbucket_password', NULL);
-  
+
   if (!empty($repos_line)) {
     $repos_line = explode("\n", $repos_line);
   }
-  
+
   if (empty($repos)) {
     return FALSE;
   }
@@ -120,25 +165,24 @@ function _bitbucket_commits_retrieve() {
     if (empty($repo)) {
       continue;
     }
-        
+
     $repo = trim($repo);
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits';
     do {   
       $result = _bitbucket_commits_api_call($url, $username, $password);
       $json = json_decode($result);
-      
+
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
       }
       if (count($json->values) > 0) {
         foreach ($json->values as $commit) {      
-                    
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
           $cdate = substr($commit->date, 0, 10) . ' 00:00:00';
-          
+
           // If we already have this hash, then continue to the next one.
           $check = db_select('commits', 'c')
                     ->fields('c')
@@ -162,7 +206,7 @@ function _bitbucket_commits_retrieve() {
             $patch = $commit->links->patch->href;
             $file = _bitbucket_commits_api_call($patch, $username, $password);
             $lines = explode("\n", $file);
-          
+
             $parse_line = 0;
             foreach($lines as $key => $line) {
               if (strpos($line, 'changed')) {
@@ -234,9 +278,7 @@ function _bitbucket_commits_retrieve() {
 }
 
 function _bitbucket_commits_api_call($url, $username, $password) {
-
   $result = `curl --user mrbagnall:SailAway77 $url`;
-  
   /*
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_URL, $url);
@@ -249,8 +291,6 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   $result = curl_exec ($ch);
   curl_close($ch);
   */
-  
-  
   return $result;
 }
 
@@ -281,7 +321,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
  * as our end date.
  */ 
 function bitbucket_commit_year_box_graph($end_date) {
-  
+
   // If the end date is not a Saturday, get the date until the next Saturday.
   if (date('l', strtotime($end_date)) != 'Saturday') {
     $end_date = date('Y-m-d', strtotime('next Saturday', strtotime($end_date)));
@@ -291,7 +331,7 @@ function bitbucket_commit_year_box_graph($end_date) {
   $start_date = date('Y-m-d', $end_date_time - (86400*364));
   $start_date = date('Y-m-d', strtotime('next Sunday', strtotime($start_date)));
   $start_date_time = strtotime($start_date);
-  
+
   $graph = array();
   for($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
     $current_date = date('Y-m-d', $i);
@@ -300,7 +340,7 @@ function bitbucket_commit_year_box_graph($end_date) {
       'date' => date('m/d/Y', $i),
     );
   }
-  
+
   $result = db_select('commits_digest', 'c')
             ->fields('c')
             ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
@@ -310,10 +350,10 @@ function bitbucket_commit_year_box_graph($end_date) {
     list($commit_date, $commit_time) = explode(' ', $ddata->commit_date);
     $graph[$commit_date]['commits'] = $ddata->commits;
   }
-  
+
   $y = $position = 0;
   $rects = $weeks = $year_graph = NULL;
-  
+
   foreach($graph as $date => $data) {
     if (date('l', strtotime($date)) == 'Sunday') {
       if ($position > 0) {
@@ -324,13 +364,13 @@ function bitbucket_commit_year_box_graph($end_date) {
       $x = 11 * $position;
       $position++;
     }
-    
+
     if ($data['commits'] == 0) {
       $fill_color = '#EEEEEE';
       $tooltip = 'No Commits on ' . date('m/d/Y', strtotime($date));
     }
     elseif ($data['commits'] < 3) {
-      $fill_color = '#808080';
+      $fill_color = '#A0A0A0';
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
     elseif ($data['commits'] < 7) {
@@ -338,21 +378,15 @@ function bitbucket_commit_year_box_graph($end_date) {
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
     else {
-      $fill_color = '#404040';
+      $fill_color = '#202020';
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
-    
+
     $y = 13 * date('w', strtotime($date));
-    
+
     $rects .= theme('bitbucket_commits_svg_rect', array(
       'class' => 'day', 'width' => 11, 'height' => 11, 'y' => $y, 
       'fill_color' => $fill_color, 'tooltip' => $tooltip));
   }
-  $year_graph = theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'offset_x' => 20, 'offset_y' => 20));
-  
-  print $year_graph;
-  exit();
-  
-  
-
+  return theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'offset_x' => 20, 'offset_y' => 20));
 }
