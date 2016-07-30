@@ -44,6 +44,21 @@ function bitbucket_commits_schema() {
         'size' => 'normal',
         'not null' => FALSE,
       ),
+      'files_changed' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => 0,
+      ),
+      'lines_added' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => 0,
+      ),
+      'lines_removed' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => 0,
+      ),
     ),
     'unique' => array('cid'),
   );

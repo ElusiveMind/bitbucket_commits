@@ -15,7 +15,8 @@ function bitbucket_commits_menu() {
   );
   $items['bitbucket'] = array(
     'title' => 'Bitbucket Statistics',
-    'page callback' => 'bitbucket_commits_statistics',
+    'page callback' => 'bitbucket_commit_year_box_graph',
+    'page arguments' => array('2016-07-28'),
     'access callback' => 'user_access',
     'access arguments' => array('access content'),
   );
@@ -57,8 +58,37 @@ function bitbucket_commits_settings_form($form, &$form_state) {
     '#type' => 'textarea',
     '#default_value' => variable_get('bitbucket_repositories', NULL),
   );
-
+  $form['bitbucket_repositories_line_numbers'] = array(
+    '#title' => 'BitBucket Repositories For Line Number Statistics',
+    '#description' => t('One repository per line. Prefix with username/reponame. These are the repositories to track the number of line changes.'),
+    '#type' => 'textarea',
+    '#default_value' => variable_get('bitbucket_repositories_line_numbers', NULL),
+  );
+  $form['submit'] = array(
+    '#title' => 'Submit',
+    '#value' => 'Submit',
+  );
   return system_settings_form($form);
+}
+
+function bitbucket_commits_settings_form_submit($form, &$form_state) {
+  $current_password = variable_get('bitbucket_password', NULL);
+  if ((!empty($current_password) && !empty($form_state['values']['bitbucket_password'])) || (empty($current_password))) {
+    variable_set('bitbucket_password', $form_state['values']['bitbucket_password']);
+  }
+
+  $current_password = variable_get('bitbucket_password', NULL);
+  if (!current_password) {
+    form_set_error('bitbucket_password', 'You must provide a password for this bitbucket account.');
+  }
+  else {
+    variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);
+    variable_set('bitbucket_repositories', $form_state['values']['bitbucket_repositories']);
+    variable_set('bitbucket_repositories_line_numbers', $form_state['values']['bitbucket_repositories_line_numbers']);
+    variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);    
+    drupal_set_message('BitBucket settings successfully updated.', 'status');
+    drupal_goto('admin/config/development/bitbucket');
+  }
 }
 
 /**
@@ -73,8 +103,13 @@ function bitbucket_commits_cron() {
  */
 function _bitbucket_commits_retrieve() {
   $repos = variable_get('bitbucket_repositories', FALSE);
+  $repos_line = variable_get('bitbucket_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_username', NULL);
   $password = variable_get('bitbucket_password', NULL);
+  
+  if (!empty($repos_line)) {
+    $repos_line = explode("\n", $repos_line);
+  }
   
   if (empty($repos)) {
     return FALSE;
@@ -85,26 +120,20 @@ function _bitbucket_commits_retrieve() {
     if (empty($repo)) {
       continue;
     }
-    $url = 'https://api.bitbucket.org/2.0/repositories/' . trim($repo) . '/commits';
+        
+    $repo = trim($repo);
+    $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits';
     do {   
-      $ch = curl_init();
-      curl_setopt($ch, CURLOPT_URL, $url);
-      curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-      curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-      curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
-      $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-      $result = curl_exec ($ch);
-      curl_close($ch);
-
+      $result = _bitbucket_commits_api_call($url, $username, $password);
       $json = json_decode($result);
+      
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
       }
       if (count($json->values) > 0) {
-        foreach ($json->values as $commit) {
+        foreach ($json->values as $commit) {      
+                    
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
@@ -116,7 +145,52 @@ function _bitbucket_commits_retrieve() {
                     ->condition('cid', $cid)
                     ->execute();
           if ($check->rowCount() > 0) {
-            break;
+            continue;
+          }
+
+          $files_changed = $lines_added = $lines_removed = 0;
+          // We need to do this as opposed to in_array thanks to extra spaces that may
+          // appear at the end of items in the textarea boxes.
+          $lines = FALSE;
+          foreach ($repos_line as $rline) {
+            if (trim($rline) == $repo) {
+              $lines = TRUE;
+              break;
+            }
+          }
+          if ($lines == TRUE && !empty($commit->links->patch->href)) {
+            $patch = $commit->links->patch->href;
+            $file = _bitbucket_commits_api_call($patch, $username, $password);
+            $lines = explode("\n", $file);
+          
+            $parse_line = 0;
+            foreach($lines as $key => $line) {
+              if (strpos($line, 'changed')) {
+                $parse_line = $key;
+                break;
+              }
+            }
+            if ($parse_line != 0) {
+              $lines[$parse_line] = trim($lines[$parse_line]);
+              $items = explode(', ', $lines[$parse_line]);
+
+              $files = (!empty($items[0])) ? $items[0] : 0;
+              $plus = (!empty($items[1])) ? $items[1] : 0;
+              $minus = (!empty($items[2])) ? $items[2] : 0;
+
+              if (!empty($files)) {
+                $files = explode(' ', $files);
+                $files_changed = (int) $files[0];
+              }
+              if (!empty($plus)) {
+                $plus = explode(' ', $plus);
+                $lines_added = (int) $plus[0];
+              }
+              if (!empty($minus)) {
+                $minus = explode(' ', $minus);
+                $lines_removed = (int) $minus[0];
+              }
+            }
           }
 
           $centry = array(
@@ -124,6 +198,9 @@ function _bitbucket_commits_retrieve() {
             'commit_message' => addslashes($message),
             'commit_date' => $cdate,
             'project' => $project,
+            'files_changed' => $files_changed,
+            'lines_added' => $lines_added,
+            'lines_removed' => $lines_removed,
           );
           drupal_write_record('commits', $centry);
 
@@ -154,4 +231,128 @@ function _bitbucket_commits_retrieve() {
       }
     } while(!empty($data->next));
   }
+}
+
+function _bitbucket_commits_api_call($url, $username, $password) {
+
+  $result = `curl --user mrbagnall:SailAway77 $url`;
+  
+  /*
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+  curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
+  $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $result = curl_exec ($ch);
+  curl_close($ch);
+  */
+  
+  
+  return $result;
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function bitbucket_commits_theme($existing, $type, $theme, $path) {
+  return array(
+    'bitbucket_commits_svg' => array(
+      'template' => 'bitbucket-commits-svg',
+      'variables' => array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => NULL, 'offset_x' => 20, 'offset_y' => 20),
+    ),
+    'bitbucket_commits_svg_week' => array(
+      'template' => 'bitbucket-commits-svg-week',
+      'variables' => array('x' => 0, 'y' => 0, 'rects' => NULL),
+    ),
+    'bitbucket_commits_svg_rect' => array(
+      'template' => 'bitbucket-commits-svg-rect',
+      'variables' => array('class' => NULL, 'width' => 11, 'height' => 11, 'y' => 0, 'fill_color' => NULL, 'tooltip' => NULL),
+    ),
+  );
+}
+
+/**
+ * Our one year graph comparable to the one provied by github.
+ * We need to get the date of the first saturday beyond the end date provided and use that
+ * as our end date.
+ */ 
+function bitbucket_commit_year_box_graph($end_date) {
+  
+  // If the end date is not a Saturday, get the date until the next Saturday.
+  if (date('l', strtotime($end_date)) != 'Saturday') {
+    $end_date = date('Y-m-d', strtotime('next Saturday', strtotime($end_date)));
+  }
+
+  $end_date_time = strtotime($end_date);
+  $start_date = date('Y-m-d', $end_date_time - (86400*364));
+  $start_date = date('Y-m-d', strtotime('next Sunday', strtotime($start_date)));
+  $start_date_time = strtotime($start_date);
+  
+  $graph = array();
+  for($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
+    $current_date = date('Y-m-d', $i);
+    $graph[$current_date] = array(
+      'commits' => 0,
+      'date' => date('m/d/Y', $i),
+    );
+  }
+  
+  $result = db_select('commits_digest', 'c')
+            ->fields('c')
+            ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
+            ->orderBy('commit_date', 'ASC')
+            ->execute();       
+  while($ddata = $result->fetchObject()) {
+    list($commit_date, $commit_time) = explode(' ', $ddata->commit_date);
+    $graph[$commit_date]['commits'] = $ddata->commits;
+  }
+  
+  $y = $position = 0;
+  $rects = $weeks = $year_graph = NULL;
+  
+  foreach($graph as $date => $data) {
+    if (date('l', strtotime($date)) == 'Sunday') {
+      if ($position > 0) {
+        $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
+        $rects = NULL;
+      }
+      $y = 0;
+      $x = 11 * $position;
+      $position++;
+    }
+    
+    if ($data['commits'] == 0) {
+      $fill_color = '#EEEEEE';
+      $tooltip = 'No Commits on ' . date('m/d/Y', strtotime($date));
+    }
+    elseif ($data['commits'] < 3) {
+      $fill_color = '#808080';
+      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
+    }
+    elseif ($data['commits'] < 7) {
+      $fill_color = '#606060';
+      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
+    }
+    else {
+      $fill_color = '#404040';
+      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
+    }
+    
+    $y = 13 * date('w', strtotime($date));
+    
+    $rects .= theme('bitbucket_commits_svg_rect', array(
+      'class' => 'day', 'width' => 11, 'height' => 11, 'y' => $y, 
+      'fill_color' => $fill_color, 'tooltip' => $tooltip));
+  }
+  $year_graph = theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'offset_x' => 20, 'offset_y' => 20));
+  
+  print $year_graph;
+  exit();
+  
+  
+
 }
