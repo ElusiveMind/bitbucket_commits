@@ -312,6 +312,15 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
       'template' => 'bitbucket-commits-svg-rect',
       'variables' => array('class' => NULL, 'width' => 11, 'height' => 11, 'y' => 0, 'fill_color' => NULL, 'tooltip' => NULL),
     ),
+    'bitbucket_commits_lines_added' => array(
+      'variables' => array('end_date' => NULL),
+    ),
+    'bitbucket_commits_lines_removed' => array(
+      'variables' => array('end_date' => NULL),
+    ),
+    'bitbucket_commits_activity_graph' => array(
+      'variables' => array('end_date' => NULL),
+    ),
   );
 }
 
@@ -329,7 +338,7 @@ function bitbucket_commit_year_box_graph($end_date) {
 
   $end_date_time = strtotime($end_date);
   $start_date = date('Y-m-d', $end_date_time - (86400*364));
-  $start_date = date('Y-m-d', strtotime('next Sunday', strtotime($start_date)));
+  $start_date = date('Y-m-d', strtotime('previous Sunday', strtotime($start_date)));
   $start_date_time = strtotime($start_date);
 
   $graph = array();
@@ -344,12 +353,16 @@ function bitbucket_commit_year_box_graph($end_date) {
   $result = db_select('commits_digest', 'c')
             ->fields('c')
             ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
+            ->condition('commit_date', $end_date, '<')
             ->orderBy('commit_date', 'ASC')
             ->execute();       
   while($ddata = $result->fetchObject()) {
     list($commit_date, $commit_time) = explode(' ', $ddata->commit_date);
     $graph[$commit_date]['commits'] = $ddata->commits;
   }
+
+  // Sort the graph by date, which is in the key.
+  ksort($graph);
 
   $y = $position = 0;
   $rects = $weeks = $year_graph = NULL;
@@ -388,5 +401,55 @@ function bitbucket_commit_year_box_graph($end_date) {
       'class' => 'day', 'width' => 11, 'height' => 11, 'y' => $y, 
       'fill_color' => $fill_color, 'tooltip' => $tooltip));
   }
+
+  // Output the last row since it is not tripped by the date catch at the beginning of
+  // the loop on the last iteration.
+  $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
+
   return theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'offset_x' => 20, 'offset_y' => 20));
+}
+
+/**
+ * Theme function for generating activity graph.
+ *
+ * @param string $end_date
+ * The ending date for which data should be collected. Rounds to the next Saturday.
+ *
+ * @return string $html
+ * The HTML of the rendered graph.
+ */
+function theme_bitbucket_commits_activity_graph($data = NULL) {
+  if (empty($data['end_date'])) {
+    $end_date = date('Y-m-d');
+  }
+  else {
+    $end_date = date('Y-m-d', strtotime($data['end_date']));
+  }
+  return bitbucket_commit_year_box_graph($end_date);
+}
+
+function theme_bitbucket_commits_lines_added($data = NULL) {
+  if (empty($data['end_date'])) {
+    $end_date = date('Y-m-d');
+  }
+  else {
+    $end_date = date('Y-m-d', strtotime($data['end_date']));
+  }
+
+  $result = db_query("SELECT SUM(lines_added) AS lines_added FROM {commits} WHERE commit_date <= '" . $end_date . "'");
+  $lines = $result->fetchObject();
+  return $lines->lines_added;
+}
+
+function theme_bitbucket_commits_lines_removed($data = NULL) {
+  if (empty($data['end_date'])) {
+    $end_date = date('Y-m-d');
+  }
+  else {
+    $end_date = date('Y-m-d', strtotime($data['end_date']));
+  }
+
+  $result = db_query("SELECT SUM(lines_removed) AS lines_removed FROM {commits} WHERE commit_date <= '" . $end_date . "'");
+  $lines = $result->fetchObject();
+  return $lines->lines_removed;
 }
