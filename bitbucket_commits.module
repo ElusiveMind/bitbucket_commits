@@ -48,6 +48,7 @@ function bitbucket_commits_permission() {
 function bitbucket_commits_api_settings_form($form, &$form_state) {
   $form['bitbucket_username'] = array(
     '#title' => 'BitBucket Username',
+    '#description' => t('The username for the configured BitBucket account.'),
     '#type' => 'textfield',
     '#size' => 64,
     '#maxlength' => 64,
@@ -55,6 +56,7 @@ function bitbucket_commits_api_settings_form($form, &$form_state) {
   );
   $form['bitbucket_password'] = array(
     '#title' => 'BitBucket Password',
+    '#description' => t('The password for the configured BitBucket account. Will not appear if already assigned. Only needs to be provided if not provided before or if the password has changed.'),
     '#type' => 'password',
     '#size' => 64,
     '#maxlength' => 64,
@@ -387,6 +389,10 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
       'template' => 'bitbucket-commits-svg-rect',
       'variables' => array('class' => NULL, 'width' => 11, 'height' => 11, 'y' => 0, 'fill_color' => NULL, 'tooltip' => NULL),
     ),
+    'bitbucket_commits_svg_month_header' => array(
+      'template' => 'bitbucket-commits-svg-month-header',
+      'variables' => array('x' => 0, 'y' => 0, 'class' => NULL, 'month' => NULL),
+    ),
     'bitbucket_commits_lines_added' => array(
       'variables' => array('end_date' => NULL),
     ),
@@ -404,7 +410,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
  * We need to get the date of the first saturday beyond the end date provided and use that
  * as our end date.
  */ 
-function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color1 = NULL, $color2 = NULL, $color3 = NULL, $color4 = NULL) {
+function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, $color1 = NULL, $color2 = NULL, $color3 = NULL, $color4 = NULL) {
 
   // If the end date is not a Saturday, get the date until the next Saturday.
   if (date('l', strtotime($end_date)) != 'Saturday') {
@@ -440,13 +446,21 @@ function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color
   ksort($graph);
 
   $y = $position = 0;
-  $rects = $weeks = $year_graph = NULL;
+  $rects = $weeks = $year_graph = $current_month = NULL;
+  $month_header = array();
 
   foreach($graph as $date => $data) {
     if (date('l', strtotime($date)) == 'Sunday') {
       if ($position > 0) {
         $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
         $rects = NULL;
+      }
+      if (date('M', strtotime($date)) != $current_month) {
+        $current_month = date('M', strtotime($date));
+        $month_header[] = array(
+          'month' => $current_month,
+          'x' => 13 * $position,
+        );
       }
       $y = 0;
       $x = 11 * $position;
@@ -464,13 +478,6 @@ function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color
     $color['purple'] = array('#fad3f5', '#fca8f1', '#fd68ea', '#fd2de2');
     $color['pink'] = array('#fcdeed', '#febcdd', '#fc8ec5', '#FF69B4');
 
-    // If we are being passed a custom color scheme via the theme function, then we have
-    // to assign our colors as follows.
-    //if (!empty($color_scheme)) {
-    //  $color = $color_scheme;
-    //  $$color_scheme = array($color1, $color2, $color3, $color4);
-    //}
-
     // If the custom color is provided in our UI, then assign the colors to our color
     // scheme for processing.
     if ($color_scheme == 'custom') {
@@ -480,6 +487,13 @@ function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color
         variable_get('bitbucket_activity_custom_color3', NULL),
         variable_get('bitbucket_activity_custom_color4', NULL),
       );
+    }
+
+    // If we are being passed a custom color scheme via the theme function, then we have
+    // to assign our colors as follows.
+    if (!empty($theme_color_scheme)) {
+      $theme_color_scheme = $theme_color_scheme;
+      $color['theme'] = array($color1, $color2, $color3, $color4);
     }
 
     if ($data['commits'] == 0) {
@@ -510,7 +524,12 @@ function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color
   // the loop on the last iteration.
   $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
 
-  return theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'offset_x' => 20, 'offset_y' => 20));
+  $mh = NULL;
+  foreach($month_header as $month) {
+    $mh .= theme('bitbucket_commits_svg_month_header', array('x' => $month['x'], 'y' => -5, 'class' => 'month' , 'month' => $month['month']));
+  }
+
+  return theme('bitbucket_commits_svg', array('width' => 721, 'height' => 110, 'class' => NULL, 'weeks' => $weeks, 'month_header' => $mh, 'offset_x' => 20, 'offset_y' => 20));
 }
 
 /**
@@ -532,6 +551,15 @@ function theme_bitbucket_commits_activity_graph($data = NULL) {
   return bitbucket_commit_year_box_graph($end_date);
 }
 
+/**
+ * Theme function for getting the number of commit lines added.
+ *
+ * @param string $end_date
+ * The ending date for which data should be collected. Rounds to the next Saturday.
+ *
+ * @return int $lines
+ * The number of lines added.
+ */
 function theme_bitbucket_commits_lines_added($data = NULL) {
   if (empty($data['end_date'])) {
     $end_date = date('Y-m-d');
@@ -545,6 +573,15 @@ function theme_bitbucket_commits_lines_added($data = NULL) {
   return $lines->lines_added;
 }
 
+/**
+ * Theme function for getting the number of commit lines removed.
+ *
+ * @param string $end_date
+ * The ending date for which data should be collected. Rounds to the next Saturday.
+ *
+ * @return int $lines
+ * The number of lines removed.
+ */
 function theme_bitbucket_commits_lines_removed($data = NULL) {
   if (empty($data['end_date'])) {
     $end_date = date('Y-m-d');
