@@ -8,7 +8,7 @@ function bitbucket_commits_menu() {
   $items['admin/config/development/bitbucket'] = array(
     'title' => 'Bitbucket Settings',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('bitbucket_commits_settings_form'),
+    'page arguments' => array('bitbucket_commits_api_settings_form'),
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
   );
@@ -73,7 +73,7 @@ function bitbucket_commits_api_settings_form($form, &$form_state) {
     '#default_value' => variable_get('bitbucket_repositories_line_numbers', NULL),
   );
   $form['submit'] = array(
-    '#title' => 'Submit',
+    '#type' => 'submit',
     '#value' => 'Submit',
   );
   return $form;
@@ -108,6 +108,10 @@ function bitbucket_commits_api_settings_form_submit($form, &$form_state) {
  * Display settings administrative form.
  */
 function bitbucket_commits_display_settings_form($form, &$form_state) {
+  $form['bitbucket_activity_color_current'] = array(
+    '#type' => 'markup',
+    '#markup' => theme('bitbucket_commits_activity_graph'),
+  );
   $form['bitbucket_activity_color_scheme'] = array(
     '#type' => 'select',
     '#title' => 'Color Scheme',
@@ -126,6 +130,54 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
     ),
     '#default_value' => variable_get('bitbucket_activity_color_scheme', 'green'),
     '#required' => TRUE,
+  );  
+  $form['bitbucket_activity_custom_color1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Custom Color 1',
+    '#description' => t('The full hex color for the lighest color indicating no activity.'),
+    '#default_value' => variable_get('bitbucket_activity_custom_color1', '#EEEEEE'),
+    '#maxlength' => 7,
+    '#size' => 7,
+    '#states' => array(
+      'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
+    ),
+  );
+  $form['bitbucket_activity_custom_color2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Custom Color 2',
+    '#description' => t('The full hex color for the lighest color indicating light activity.'),
+    '#default_value' => variable_get('bitbucket_activity_custom_color2', '#A0A0A0'),
+    '#maxlength' => 7,
+    '#size' => 7,
+    '#states' => array(
+      'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
+    ),
+  );
+  $form['bitbucket_activity_custom_color3'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Custom Color 3',
+    '#description' => t('The full hex color for the lighest color indicating medium activity.'),
+    '#default_value' => variable_get('bitbucket_activity_custom_color3', '#606060'),
+    '#maxlength' => 7,
+    '#size' => 7,
+    '#states' => array(
+      'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
+    ),
+  );
+  $form['bitbucket_activity_custom_color4'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Custom Color 4',
+    '#description' => t('The full hex color for the lighest color indicating heavy activity.'),
+    '#default_value' => variable_get('bitbucket_activity_custom_color4', '#202020'),
+    '#maxlength' => 7,
+    '#size' => 7,
+    '#states' => array(
+      'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
+    ),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
   );
   return $form;
 }
@@ -134,6 +186,29 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
  * Submit callback for the displays administrative form.
  */
 function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
+  // If the color scheme is set to custom, then we must have hex values for each of the
+  // custom color fields.
+  if ($form_state['values']['bitbucket_activity_color_scheme'] == 'custom') {
+    $color1 = $form_state['values']['bitbucket_activity_custom_color1'];
+    $color2 = $form_state['values']['bitbucket_activity_custom_color2'];
+    $color3 = $form_state['values']['bitbucket_activity_custom_color3'];
+    $color4 = $form_state['values']['bitbucket_activity_custom_color4'];
+    for($i = 1; $i <= 4; $i++) {
+      $var = "color" . $i;
+      if (empty($$var)) {
+        form_set_error($$var, 'You must provide a hex color (complete with the #) for Custom Color ' . $i);
+      }
+    }
+  }
+  
+  variable_set('bitbucket_activity_color_scheme', $form_state['values']['bitbucket_activity_color_scheme']);
+  variable_set('bitbucket_activity_custom_color1', $form_state['values']['bitbucket_activity_custom_color1']);
+  variable_set('bitbucket_activity_custom_color2', $form_state['values']['bitbucket_activity_custom_color2']);
+  variable_set('bitbucket_activity_custom_color3', $form_state['values']['bitbucket_activity_custom_color3']);
+  variable_set('bitbucket_activity_custom_color4', $form_state['values']['bitbucket_activity_custom_color4']);
+  
+  drupal_set_message('BitBucket display settings successfully updated.', 'status');
+  drupal_goto('admin/config/development/bitbucket/display');    
 }
 
 /**
@@ -319,7 +394,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
       'variables' => array('end_date' => NULL),
     ),
     'bitbucket_commits_activity_graph' => array(
-      'variables' => array('end_date' => NULL),
+      'variables' => array('end_date' => NULL, 'color_scheme' => NULL, 'color1' => NULL, 'color2' => NULL, 'color3' => NULL, 'color4' => NULL),
     ),
   );
 }
@@ -329,7 +404,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
  * We need to get the date of the first saturday beyond the end date provided and use that
  * as our end date.
  */ 
-function bitbucket_commit_year_box_graph($end_date) {
+function bitbucket_commit_year_box_graph($end_date, $color_scheme = NULL, $color1 = NULL, $color2 = NULL, $color3 = NULL, $color4 = NULL) {
 
   // If the end date is not a Saturday, get the date until the next Saturday.
   if (date('l', strtotime($end_date)) != 'Saturday') {
@@ -378,20 +453,49 @@ function bitbucket_commit_year_box_graph($end_date) {
       $position++;
     }
 
+    $color_scheme = variable_get('bitbucket_activity_color_scheme', 'green');
+    $color['grey'] = array('#EEEEEE', '#A0A0A0', '#606060', '#202020');
+    $color['red'] = array('#FFEEEE', '#FFA0A0', '#FF6060', '#FF2020');
+    $color['green'] = array('#EEFFEE', '#A0FFA0', '#60FF60', '#20FF20');
+    $color['blue'] = array('#EEEEFF', '#A0A0FF', '#6060FF', '#2020FF');
+    $color['yellow'] = array('#EEEED0', '#DDDD20', '#CCCC20', '#AAAA20');
+    $color['orange'] = array('#ffe3b2', '#fbd38e', '#fcc35f', '#feae22');
+    $color['brown'] = array('#f7e3bf', '#be9d63', '#a58246', '#9d6400');
+    $color['purple'] = array('#fad3f5', '#fca8f1', '#fd68ea', '#fd2de2');
+    $color['pink'] = array('#fcdeed', '#febcdd', '#fc8ec5', '#FF69B4');
+
+    // If we are being passed a custom color scheme via the theme function, then we have
+    // to assign our colors as follows.
+    //if (!empty($color_scheme)) {
+    //  $color = $color_scheme;
+    //  $$color_scheme = array($color1, $color2, $color3, $color4);
+    //}
+
+    // If the custom color is provided in our UI, then assign the colors to our color
+    // scheme for processing.
+    if ($color_scheme == 'custom') {
+      $color['custom'] = array(
+        variable_get('bitbucket_activity_custom_color1', NULL),
+        variable_get('bitbucket_activity_custom_color2', NULL),
+        variable_get('bitbucket_activity_custom_color3', NULL),
+        variable_get('bitbucket_activity_custom_color4', NULL),
+      );
+    }
+
     if ($data['commits'] == 0) {
-      $fill_color = '#EEEEEE';
+      $fill_color = $color[$color_scheme][0];
       $tooltip = 'No Commits on ' . date('m/d/Y', strtotime($date));
     }
     elseif ($data['commits'] < 3) {
-      $fill_color = '#A0A0A0';
+      $fill_color = $color[$color_scheme][1];
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
     elseif ($data['commits'] < 7) {
-      $fill_color = '#606060';
+      $fill_color = $color[$color_scheme][2];
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
     else {
-      $fill_color = '#202020';
+      $fill_color = $color[$color_scheme][3];
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
 
