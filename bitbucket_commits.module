@@ -73,6 +73,12 @@ function bitbucket_commits_api_settings_form($form, &$form_state) {
     '#type' => 'textarea',
     '#default_value' => variable_get('bitbucket_repositories_line_numbers', NULL),
   );
+  $form['bitbucket_raw_names'] = array(
+    '#title' => 'Other Possible Commit Names',
+    '#description' => t('Other names a commit may be logged under aside from your username. Used to assign commits to your statistics. One per line.'),
+    '#type' => 'textarea',
+    '#default_value' => variable_get('bitbucket_raw_names', NULL),
+  );
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => 'Submit',
@@ -99,7 +105,8 @@ function bitbucket_commits_api_settings_form_submit($form, &$form_state) {
     variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);
     variable_set('bitbucket_repositories', $form_state['values']['bitbucket_repositories']);
     variable_set('bitbucket_repositories_line_numbers', $form_state['values']['bitbucket_repositories_line_numbers']);
-    variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);    
+    variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);
+    variable_set('bitbucket_raw_names', $form_state['values']['bitbucket_raw_names']);
     drupal_set_message('BitBucket API settings successfully updated.', 'status');
     drupal_goto('admin/config/development/bitbucket/api');
   }
@@ -228,6 +235,8 @@ function _bitbucket_commits_retrieve() {
   $repos_line = variable_get('bitbucket_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_username', NULL);
   $password = variable_get('bitbucket_password', NULL);
+  $raw_usernames = variable_get('bitbucket_raw_names', NULL);
+  $raw_usernames = explode("\n", $raw_usernames);
 
   if (!empty($repos_line)) {
     $repos_line = explode("\n", $repos_line);
@@ -254,12 +263,29 @@ function _bitbucket_commits_retrieve() {
         break;
       }
       if (count($json->values) > 0) {
-        foreach ($json->values as $commit) {      
+        foreach ($json->values as $commit) {
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
           $cdate = substr($commit->date, 0, 10) . ' 00:00:00';
 
+          $pass = FALSE;
+          if (!empty($commit->author)) {
+            if (!empty($commit->author->user->username) && $commit->author->user->username == $username) {
+              $pass = TRUE;
+            }
+            elseif (!empty($commit->author->raw) && $commit->author->raw != $username) {
+              foreach($raw_usernames as $raw_username) {
+                if (trim($raw_username) == trim($commit->author->raw)) {
+                  $pass = TRUE;
+                }
+              }
+            }
+          }
+          if ($pass == FALSE) {
+            dsm($commit->author->raw);
+            continue;
+          }
           // If we already have this hash, then continue to the next one.
           $check = db_select('commits', 'c')
                     ->fields('c')
