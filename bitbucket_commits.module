@@ -253,13 +253,14 @@ function _bitbucket_commits_retrieve() {
     }
 
     $repo = trim($repo);
-    $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits';
+    $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
       $result = _bitbucket_commits_api_call($url, $username, $password);
       $json = json_decode($result);
 
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
+        drupal_set_message($url);
         break;
       }
       if (count($json->values) > 0) {
@@ -283,7 +284,7 @@ function _bitbucket_commits_retrieve() {
             }
           }
           if ($pass == FALSE) {
-            dsm($commit->author->raw);
+            dpm($commit->author->raw);
             continue;
           }
           // If we already have this hash, then continue to the next one.
