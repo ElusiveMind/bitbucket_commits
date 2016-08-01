@@ -609,8 +609,8 @@ function bitbucket_commits_help($path, $arg) {
       $output .= t('The purpose of this module is to provide a GitHub style activity graph to for your BitBucket git repository. It can provide statistics on public and/or private repositories and can also provide additional statistics such as numbers of lines committed and removed from repositories. Over time, these reports and statistics will become more granular so they can be used in a variety of ways on your Drupal Site.') . '<br /><br />';
       $output .= t('The main target for this module are developers who wish to report their activity on a web site such as a personal web site or blog. At some point, it may become possible to include the graph via a javascript "bug" on a target web site, but that functionality is planned down the road.') . '<br /><br />';
       $output .= '<div style="border-top: 2px solid #f8981d; margin: 15px 0px; padding-top: 15px; width: 100%; font-size: 8pt; line-height: 1.3em;">';
-      $output .= '<img src="/' . drupal_get_path('module', 'alpha_pagination') . '/images/flyingflip-logo.png" width="151" height="50" alt="FlyingFlip Studios" align="right" /><br />';
-      $output .= 'Released 2016 - v7.x-1.x - FlyingFlip Studios, LLC. - Released under GNU GENERAL PUBLIC LICENSE - Version 2, June 1991<br />http://www.flyingflip.com - @flyingflip - @mbagnall17<br clear="right">';
+      $output .= '<img src="/' . drupal_get_path('module', 'bitbucket_commits') . '/images/flyingflip-logo.png" width="151" height="50" alt="FlyingFlip Studios" align="right" /><br />';
+      $output .= 'Released 2016 - v7.x-1.x - FlyingFlip Studios, LLC. - Released under GNU GENERAL PUBLIC LICENSE - Version 2, June 1991<br />http://www.michaelbagnall.com - @flyingflip - @mbagnall17<br clear="right">';
       $output .= '<style>.item-list, hr { display: none; }</style></div>';      
       break;
   }
