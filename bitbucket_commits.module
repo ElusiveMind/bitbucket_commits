@@ -469,14 +469,14 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
     $color_scheme = variable_get('bitbucket_activity_color_scheme', 'green');
     $color['grey'] = array('#EEEEEE', '#A0A0A0', '#606060', '#202020');
-    $color['red'] = array('#FFEEEE', '#FFA0A0', '#FF6060', '#FF2020');
-    $color['green'] = array('#EEFFEE', '#A0FFA0', '#60FF60', '#20FF20');
-    $color['blue'] = array('#EEEEFF', '#A0A0FF', '#6060FF', '#2020FF');
-    $color['yellow'] = array('#EEEED0', '#DDDD20', '#CCCC20', '#AAAA20');
-    $color['orange'] = array('#ffe3b2', '#fbd38e', '#fcc35f', '#feae22');
-    $color['brown'] = array('#f7e3bf', '#be9d63', '#a58246', '#9d6400');
-    $color['purple'] = array('#fad3f5', '#fca8f1', '#fd68ea', '#fd2de2');
-    $color['pink'] = array('#fcdeed', '#febcdd', '#fc8ec5', '#FF69B4');
+    $color['red'] = array('#EEEEEE', '#FFA0A0', '#FF6060', '#FF2020');
+    $color['green'] = array('#EEEEEE', '#A0FFA0', '#60FF60', '#20FF20');
+    $color['blue'] = array('#EEEEEE', '#A0A0FF', '#6060FF', '#2020FF');
+    $color['yellow'] = array('#EEEEEE', '#DDDD20', '#CCCC20', '#AAAA20');
+    $color['orange'] = array('#EEEEEE', '#fbd38e', '#fcc35f', '#feae22');
+    $color['brown'] = array('#EEEEEE', '#be9d63', '#a58246', '#9d6400');
+    $color['purple'] = array('#EEEEEE', '#fca8f1', '#fd68ea', '#fd2de2');
+    $color['pink'] = array('#EEEEEE', '#febcdd', '#fc8ec5', '#FF69B4');
 
     // If the custom color is provided in our UI, then assign the colors to our color
     // scheme for processing.
@@ -593,4 +593,26 @@ function theme_bitbucket_commits_lines_removed($data = NULL) {
   $result = db_query("SELECT SUM(lines_removed) AS lines_removed FROM {commits} WHERE commit_date <= '" . $end_date . "'");
   $lines = $result->fetchObject();
   return $lines->lines_removed;
+}
+
+/**
+ * Implements hook_help().
+ */
+function bitbucket_commits_help($path, $arg) {
+  $output = NULL;
+  switch($path) {
+    case 'admin/help#bitbucket_commits':
+      $output .= '<h4>' . t('BitBucket Commits Overview') . '</h4>';
+      $output .= 'Wiki Documentation: <a href="https://bitbucket.org/mrbagnall/bitbucket_commits/wiki/Home">https://bitbucket.org/mrbagnall/bitbucket_commits/wiki/Home</a><br /><br />';
+      $output .= t('This is the documentation wiki for the BitBucket Commits module for Drupal. It contains the information and instructions you will need to get up and running using this module. The contents of this wiki are also contained in the advanced help section of the module available if you have the Advanced Help contributed module installed on your installation of Drupal.') . '<br /><br />';
+      $output .= '<h4>' . t('Features') . "</h4>";
+      $output .= t('The purpose of this module is to provide a GitHub style activity graph to for your BitBucket git repository. It can provide statistics on public and/or private repositories and can also provide additional statistics such as numbers of lines committed and removed from repositories. Over time, these reports and statistics will become more granular so they can be used in a variety of ways on your Drupal Site.') . '<br /><br />';
+      $output .= t('The main target for this module are developers who wish to report their activity on a web site such as a personal web site or blog. At some point, it may become possible to include the graph via a javascript "bug" on a target web site, but that functionality is planned down the road.') . '<br /><br />';
+      $output .= '<div style="border-top: 2px solid #f8981d; margin: 15px 0px; padding-top: 15px; width: 100%; font-size: 8pt; line-height: 1.3em;">';
+      $output .= '<img src="/' . drupal_get_path('module', 'alpha_pagination') . '/images/flyingflip-logo.png" width="151" height="50" alt="FlyingFlip Studios" align="right" /><br />';
+      $output .= 'Released 2016 - v7.x-1.x - FlyingFlip Studios, LLC. - Released under GNU GENERAL PUBLIC LICENSE - Version 2, June 1991<br />http://www.flyingflip.com - @flyingflip - @mbagnall17<br clear="right">';
+      $output .= '<style>.item-list, hr { display: none; }</style></div>';      
+      break;
+  }
+  return $output;
 }
