@@ -19,6 +19,7 @@ function bitbucket_commits_menu() {
     'page arguments' => array('bitbucket_commits_api_settings_form'),
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
+    'weight' => 1,
   );
   $items['admin/config/development/bitbucket/display'] = array(
     'title' => 'Display Settings',
@@ -27,6 +28,14 @@ function bitbucket_commits_menu() {
     'page arguments' => array('bitbucket_commits_display_settings_form'),
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
+    'weight' => 2,
+  );
+  $items['admin/config/development/bitbucket/sync'] = array(
+    'title' => 'Sync',
+    'page callback' => 'bitbucket_commits_cron',
+    'access callback' => 'user_access',
+    'access arguments' => array('access bitbucket settings'),
+    'weight' => 3,
   );
   return $items;
 }
@@ -75,7 +84,7 @@ function bitbucket_commits_api_settings_form($form, &$form_state) {
   );
   $form['bitbucket_raw_names'] = array(
     '#title' => 'Other Possible Commit Names',
-    '#description' => t('Other names a commit may be logged under aside from your username. Used to assign commits to your statistics. One per line.'),
+    '#description' => t('Other names a commit may be logged under aside from your username. Used to assign commits to your statistics. One per line. This can also be a partial name. Will be matched by substring.'),
     '#type' => 'textarea',
     '#default_value' => variable_get('bitbucket_raw_names', NULL),
   );
@@ -260,7 +269,6 @@ function _bitbucket_commits_retrieve() {
 
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
-        drupal_set_message($url);
         break;
       }
       if (count($json->values) > 0) {
@@ -277,14 +285,13 @@ function _bitbucket_commits_retrieve() {
             }
             elseif (!empty($commit->author->raw) && $commit->author->raw != $username) {
               foreach($raw_usernames as $raw_username) {
-                if (trim($raw_username) == trim($commit->author->raw)) {
+                if (strpos(strtolower($commit->author->raw), strtolower(trim($raw_username)))) {
                   $pass = TRUE;
                 }
               }
             }
           }
           if ($pass == FALSE) {
-            dpm($commit->author->raw);
             continue;
           }
           // If we already have this hash, then continue to the next one.
