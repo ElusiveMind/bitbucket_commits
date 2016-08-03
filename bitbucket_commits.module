@@ -32,7 +32,7 @@ function bitbucket_commits_menu() {
   );
   $items['admin/config/development/bitbucket/sync'] = array(
     'title' => 'Sync',
-    'page callback' => 'bitbucket_commits_cron',
+    'page callback' => 'bitbucket_commits_sync',
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
     'weight' => 3,
@@ -240,6 +240,14 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
   drupal_goto('admin/config/development/bitbucket/display');    
 }
 
+/**
+ * Run our cron manually and return to admin section.
+ */
+function bitbucket_commits_sync() {
+  bitbucket_commits_cron();
+  drupal_set_message('BitBucket synchronization completed.', 'status');
+  drupal_goto('admin/config/development/bitbucket/display');
+}
 /**
  * Implements hook_cron().
  */

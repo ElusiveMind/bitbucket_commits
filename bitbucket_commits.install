@@ -19,7 +19,7 @@ function bitbucket_commits_schema() {
         'not null' => FALSE,
       ),
     ),
-    'unique' => array('commit_date'),
+    'primary key' => array('commit_date'),
   );
   $schema['commits'] = array(
     'fields'=> array(
@@ -60,7 +60,18 @@ function bitbucket_commits_schema() {
         'default' => 0,
       ),
     ),
-    'unique' => array('cid'),
+    'primary key' => array('cid'),
   );
   return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function bitbucket_commits_uninstall() {
+  variable_del('bitbucket_username');
+  variable_del('bitbucket_password');
+  variable_del('bitbucket_repositories');
+  variable_del('bitbucket_repositories_line_numbers');
+  variable_del('bitbucket_raw_names');
 }
