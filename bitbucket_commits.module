@@ -422,16 +422,16 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
   curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
   curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+  curl_setopt($ch, CURLOPT_COOKIEFILE, 'cookiefile.txt');
+  curl_setopt($ch, CURLOPT_HTTPHEADER,
+    array(
+      "Authorization: Basic " . base64_encode($username . ":" . $password)
+    )
+  );
   curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
   $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   $result = curl_exec ($ch);
   curl_close($ch);
-
-  if ($result == "Forbidden") {
-    $command = "curl --user " . $username . ":" . $password . " " . $url;
-    $result = `$command`;
-  }
-
   return $result;
 }
 
