@@ -62,6 +62,42 @@ function bitbucket_commits_schema() {
     ),
     'primary key' => array('cid'),
   );
+  $schema['commits_projects'] = array(
+    'fields'=> array(
+      'full_name' => array(
+        'type' => 'varchar',
+        'length' => 96,
+        'not null' => FALSE,
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 96,
+        'not null' => FALSE,
+      ),
+      'is_private' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => FALSE,
+        'default' => 0,
+      ),
+      'website' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+      'language' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => FALSE,
+      ),
+      'description' => array(
+        'type' => 'text',
+        'size' => 'normal',
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('full_name'),
+  );
   return $schema;
 }
 
@@ -74,4 +110,9 @@ function bitbucket_commits_uninstall() {
   variable_del('bitbucket_repositories');
   variable_del('bitbucket_repositories_line_numbers');
   variable_del('bitbucket_raw_names');
+}
+
+function bitbucket_commits_update_7101() {
+  $schema = bitbucket_commits_schema();
+  db_create_table('commits_projects', $schema['commits_projects']);
 }

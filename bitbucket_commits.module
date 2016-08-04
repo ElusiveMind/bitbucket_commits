@@ -276,23 +276,30 @@ function _bitbucket_commits_retrieve() {
   }
 
   $repos = explode("\n", $repos);
+  $repositories = array();
   foreach($repos as $repo) {
     if (empty($repo)) {
       continue;
     }
-
     $repo = trim($repo);
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
       $result = _bitbucket_commits_api_call($url, $username, $password);
       $json = json_decode($result);
-
+      if ($json == FALSE) {
+        drupal_set_message('BitBucket API rate limit exceeded', 'error');
+        break 2;
+      }
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
       }
       if (count($json->values) > 0) {
         foreach ($json->values as $commit) {
+          if (!array_key_exists($commit->repository->full_name, $repositories)) {
+            $repository_information = bitbucket_commits_get_repository_information($repo, $username, $password);
+            $repositories[$commit->repository->full_name] = $repository_information;
+          };
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
@@ -406,6 +413,23 @@ function _bitbucket_commits_retrieve() {
       }
     } while(!empty($json->next));
   }
+  // Save the information on our repositories to the database.
+  if (count($repositories) > 0) {
+    foreach($repositories as $repository) {
+      $is_private = ($repository->is_private == 1) ? 1 : 0;
+      db_merge('commits_projects')
+        ->key(array('full_name' => $repository->full_name))
+        ->fields(array(
+          'full_name' => $repository->full_name,
+          'name' => $repository->name,
+          'is_private' => $is_private,
+          'website' => $repository->website,
+          'language' => $repository->language,
+          'description' => $repository->description,
+          ))
+        ->execute();
+    }
+  }
 }
 
 /**
@@ -440,6 +464,11 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   $result = curl_exec ($ch);
   curl_close($ch);
+
+  if ($result == 'Rate limit for this resource has been exceeded') {
+    return FALSE;
+  }
+
   return $result;
 }
 
@@ -644,7 +673,6 @@ function theme_bitbucket_commits_lines_added($data = NULL) {
   else {
     $end_date = date('Y-m-d', strtotime($data['end_date']));
   }
-
   $result = db_query("SELECT SUM(lines_added) AS lines_added FROM {commits} WHERE commit_date <= '" . $end_date . "'");
   $lines = $result->fetchObject();
   return $lines->lines_added;
@@ -670,6 +698,44 @@ function theme_bitbucket_commits_lines_removed($data = NULL) {
   $result = db_query("SELECT SUM(lines_removed) AS lines_removed FROM {commits} WHERE commit_date <= '" . $end_date . "'");
   $lines = $result->fetchObject();
   return $lines->lines_removed;
+}
+
+/**
+ * Get the commits per project within the given interval of a given date.
+ *
+ * @param int $interval
+ * The interval within the given date (in days). Defaults to 14.
+ *
+ * @param string $date
+ * The date to be used around the interval. Defaults to the current date.
+ *
+ * @return array $commits
+ * An array of the commit counts and projects sorted in reverse order by commit count.
+ */
+function bitbucket_commits_project_commit_interval_count($interval = 14, $date = NULL) {
+  if (empty($date)) {
+    $date = date('Y-m-d');
+  }
+  $result = db_query("SELECT COUNT(*) as commit_count, project FROM commits 
+                      WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY) 
+                      GROUP by project ORDER BY commit_count DESC");
+  $commits = array();
+  while($cdata = $result->fetchObject) {
+    $commits[] = array(
+      'project' => $cdata->project,
+      'commits' => $cdata->commit_count,
+    );
+  }
+  return $commits;
+}
+
+/**
+ * Get repository information for a specific repo (API Call)
+ */
+function bitbucket_commits_get_repository_information($repo, $username, $password) {
+  $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo;
+  $result = json_decode(_bitbucket_commits_api_call($url, $username, $password));
+  return $result;
 }
 
 /**
