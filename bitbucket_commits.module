@@ -300,10 +300,17 @@ function _bitbucket_commits_retrieve() {
             $repository_information = bitbucket_commits_get_repository_information($repo, $username, $password);
             $repositories[$commit->repository->full_name] = $repository_information;
           };
+          
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
-          $message = $commit->message;
-          $cdate = substr($commit->date, 0, 10) . ' 00:00:00';
+          $message = $commit->message;         
+          $commit->date = new DateTime($commit->date, new DateTimeZone('UTC'));
+          $commit->date->setTimezone(new DateTimeZone(date_default_timezone()));
+          $the_date = (array) $commit->date;
+          $the_date['commit_date'] = (array) $commit->date->date;
+          list($commit_date, $commit_time) = explode(' ', $the_date['date']);
+          list($commit_time, $x) = explode('.', $commit_time);
+          $commit->date = $commit_date . ' ' . $commit_time;
 
           $pass = FALSE;
           if (!empty($commit->author)) {
@@ -319,7 +326,7 @@ function _bitbucket_commits_retrieve() {
             }
           }
           if ($pass == FALSE) {
-            continue;
+            break 2;
           }
           // If we already have this hash, then continue to the next one.
           $check = db_select('commits', 'c')
@@ -378,7 +385,7 @@ function _bitbucket_commits_retrieve() {
           $centry = array(
             'cid' => $cid,
             'commit_message' => addslashes($message),
-            'commit_date' => $cdate,
+            'commit_date' => $commit->date,
             'project' => $project,
             'files_changed' => $files_changed,
             'lines_added' => $lines_added,
@@ -388,20 +395,20 @@ function _bitbucket_commits_retrieve() {
 
           $commits = db_select('commits_digest', 'cd')
                       ->fields('cd')
-                      ->condition('commit_date', $cdate)
+                      ->condition('commit_date', $commit_date . ' 00:00:00')
                       ->execute();
           if ($commits->rowCount() > 0) {
             $commits_data = $commits->fetchObject();
             $commits_data->commits++;
             $centry = array(
-              'commit_date' => $cdate,
+              'commit_date' => $commit_date . " 00:00:00",
               'commits' => $commits_data->commits,
             );
             drupal_write_record('commits_digest', $centry, array('commit_date'));
           }
           else {
            $centry = array(
-              'commit_date' => $cdate,
+              'commit_date' => $commit_date . " 00:00:00",
               'commits' => 1,
             );
             drupal_write_record('commits_digest', $centry);
@@ -521,7 +528,6 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
   $start_date = date('Y-m-d', $end_date_time - (86400*364));
   $start_date = date('Y-m-d', strtotime('previous Sunday', strtotime($start_date)));
   $start_date_time = strtotime($start_date);
-
   $graph = array();
   for($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
     $current_date = date('Y-m-d', $i);
@@ -538,7 +544,11 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
             ->orderBy('commit_date', 'ASC')
             ->execute();       
   while($ddata = $result->fetchObject()) {
-    list($commit_date, $commit_time) = explode(' ', $ddata->commit_date);
+    $ddata->commit_date = new DateTime($ddata->commit_date, new DateTimeZone('UTC'));
+    $ddata->commit_date->setTimezone(new DateTimeZone(date_default_timezone()));
+    $the_date = (array) $ddata;
+    $the_date['commit_date'] = (array)$the_date['commit_date'];
+    list($commit_date, $x) = explode(' ', $the_date['commit_date']['date']);
     $graph[$commit_date]['commits'] = $ddata->commits;
   }
 
