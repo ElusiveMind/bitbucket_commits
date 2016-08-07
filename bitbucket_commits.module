@@ -540,15 +540,11 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
   $result = db_select('commits_digest', 'c')
             ->fields('c')
             ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
-            ->condition('commit_date', $end_date, '<')
+            ->condition('commit_date', $end_date, '<=')
             ->orderBy('commit_date', 'ASC')
             ->execute();       
   while($ddata = $result->fetchObject()) {
-    $ddata->commit_date = new DateTime($ddata->commit_date, new DateTimeZone('UTC'));
-    $ddata->commit_date->setTimezone(new DateTimeZone(date_default_timezone()));
-    $the_date = (array) $ddata;
-    $the_date['commit_date'] = (array)$the_date['commit_date'];
-    list($commit_date, $x) = explode(' ', $the_date['commit_date']['date']);
+    list($commit_date, $x) = explode(' ', $ddata->commit_date);
     $graph[$commit_date]['commits'] = $ddata->commits;
   }
 
