@@ -687,10 +687,10 @@ function theme_bitbucket_commits_activity_graph($data = NULL) {
  */
 function theme_bitbucket_commits_lines_added($data = NULL) {
   if (empty($data['end_date'])) {
-    $end_date = date('Y-m-d');
+    $end_date = date('Y-m-d H:i:s');
   }
   else {
-    $end_date = date('Y-m-d', strtotime($data['end_date']));
+    $end_date = date('Y-m-d H:i:s', strtotime($data['end_date']));
   }
   $result = db_query("SELECT SUM(lines_added) AS lines_added FROM {commits} WHERE commit_date <= '" . $end_date . "'");
   $lines = $result->fetchObject();
@@ -708,10 +708,10 @@ function theme_bitbucket_commits_lines_added($data = NULL) {
  */
 function theme_bitbucket_commits_lines_removed($data = NULL) {
   if (empty($data['end_date'])) {
-    $end_date = date('Y-m-d');
+    $end_date = date('Y-m-d H:i:s');
   }
   else {
-    $end_date = date('Y-m-d', strtotime($data['end_date']));
+    $end_date = date('Y-m-d H:i:s', strtotime($data['end_date']));
   }
 
   $result = db_query("SELECT SUM(lines_removed) AS lines_removed FROM {commits} WHERE commit_date <= '" . $end_date . "'");
