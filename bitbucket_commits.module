@@ -146,7 +146,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
       'github' => t('GitHub'),
       'custom' => t('Custom (must provide hex values)'),
     ),
-    '#default_value' => variable_get('bitbucket_activity_color_scheme', 'green'),
+    '#default_value' => variable_get('bitbucket_activity_color_scheme', 'github'),
     '#required' => TRUE,
   );  
   $form['bitbucket_activity_custom_color1'] = array(
@@ -209,6 +209,10 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
     '#value' => 'Submit',
   );
   return $form;
+}
+
+function _bitbucket_commits_custom_colors_form_elements(&$form, $extra = '') {
+
 }
 
 /**
@@ -303,7 +307,12 @@ function _bitbucket_commits_retrieve() {
           
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
-          $message = $commit->message;         
+          $message = $commit->message;
+          
+          // Do timezone conversion of the date from BitBucket. All their times are in
+          // UTC regardles of your timezone settings. Adjust this to Drupal's default
+          // timezone for storage. Doing so here, enables our other time-sensitive
+          // queries to work properly.       
           $commit->date = new DateTime($commit->date, new DateTimeZone('UTC'));
           $commit->date->setTimezone(new DateTimeZone(date_default_timezone()));
           $the_date = (array) $commit->date;
@@ -509,6 +518,10 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
     'bitbucket_commits_activity_graph' => array(
       'variables' => array('end_date' => NULL, 'color_scheme' => NULL, 'color1' => NULL, 'color2' => NULL, 'color3' => NULL, 'color4' => NULL),
     ),
+    'bitbucket_commits_block' => array(
+      'variables' => array('graph' => NULL, 'lines_added' => NULL, 'lines_removed' => NULL, 'commits' => NULL, 'max_streak' => NULL, 'current_streak' => NULL, 'total_commits' => NULL),
+      'template' => 'bitbucket-commits-block',
+    ),
   );
 }
 
@@ -608,7 +621,7 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
       $fill_color = $color[$color_scheme][0];
       $tooltip = 'No Commits on ' . date('m/d/Y', strtotime($date));
     }
-    elseif ($data['commits'] < 3) {
+    elseif ($data['commits'] < 4) {
       $fill_color = $color[$color_scheme][1];
       $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
     }
@@ -737,7 +750,19 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
 
 /**
  * Get repository information for a specific repo (API Call)
- */
+ *
+ * @param string $repo
+ * The repository we are getting information on
+ *
+ * @param string $username
+ * The username for our authentication
+ *
+ * @param string $password
+ * The password for the username provided.
+ *
+ * @return string $results
+ * The JSON decoded array from BitBucket to be parsed.
+*/
 function bitbucket_commits_get_repository_information($repo, $username, $password) {
   $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo;
   $result = json_decode(_bitbucket_commits_api_call($url, $username, $password));
@@ -764,4 +789,170 @@ function bitbucket_commits_help($path, $arg) {
       break;
   }
   return $output;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function bitbucket_commits_block_info() {
+  $blocks = array();
+  $blocks['bitbucket'] = array(
+    'info' => t('BitBucket Statistics'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function bitbucket_commits_block_view($delta = '') {
+  $block = array();
+  switch ($delta) {
+    case 'bitbucket':
+      $block['subject'] = t('BitBucket Statistics');
+      $block['content'] = array(
+        '#markup' => bitbucket_commits_block_html(),
+        '#attached' => array(
+          drupal_get_path('module', 'bitbucket_commits') . '/css/style.css',
+        ),
+      );
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function bitbucket_commits_block_configure($delta = '') {
+  $form = array();
+  if ($delta == 'bitbucket') {
+    $form['bitbucket_commits'] = array(
+      '#type' => 'fieldset',
+      '#title' => 'BitBucket Settings',
+    );
+    $form['bitbucket_commits']['bitbucket_commits_recent_commits_repo_days'] = array(
+      '#type' => 'textfield',
+      '#title' => 'Display commit repo details for how many days?',
+      '#description' => t('Setting this to 0 will disable the functionality, otherwise set to the commit activity statistics for an interval of this many days.'),
+      '#default_value' => variable_get('bitbucket_commits_recent_commits_repo_days', 14),
+      '#required' => TRUE,
+      '#maxlength' => 3,
+      '#size' => 3,
+      '#weight' => 9,
+    );
+    $form['bitbucket_commits']['bitbucket_commits_recent_commits_repo_days_private'] = array(
+      '#type' => 'checkbox',
+      '#title' => 'Include private repositories in the recent commits option above?',
+      '#options' => array(
+        '1' => t('Yes'),
+        '0' => t('No'),
+      ),
+      '#default_value' => variable_get('bitbucket_commits_recent_commits_repo_days_private', 1),
+      '#weight' => 10,
+    );
+    $form['bitbucket_commits']['bitbucket_commits_display_line_stats'] = array(
+      '#type' => 'checkbox',
+      '#title' => 'Display per line statistics in block?',
+      '#options' => array(
+        '1' => t('Yes'),
+        '0' => t('No'),
+      ),
+      '#default_value' => variable_get('bitbucket_commits_display_line_stats', 1),
+      '#weight' => 11,
+    );
+  }
+  return $form;
+}
+
+/**
+ * Output the HTML for our block.
+ */
+function bitbucket_commits_block_html() {
+  $repo_days = variable_get('bitbucket_commits_recent_commits_repo_days', 0);
+  $private = variable_get('bitbucket_commits_recent_commits_repo_days_private', 1);
+  $line_stats = variable_get('bitbucket_commits_display_line_stats', 1).
+  $max_streak = bitbucket_commits_sequential_streak();
+  $current_streak = bitbucket_commits_current_streak();
+  $total_commits = bitbucket_commits_total_commits();
+  
+  $commits = array();
+  $lines_added = $lines_removed = NULL;
+  $graph = bitbucket_commit_year_box_graph(date('Y-m-d'));
+  if (!empty($repo_days)) {
+    $commits = bitbucket_commits_project_commit_interval_count($repo_days, date('Y-m-d'), $private);
+  }
+  if (!empty($line_stats)) {
+    $lines_added = theme('bitbucket_commits_lines_added');
+    $lines_removed = theme('bitbucket_commits_lines_removed');
+  }
+  $graph =  theme('bitbucket_commits_block', 
+    array('graph' => $graph, 'commits' => $commits, 'lines_added' => $lines_added, 
+          'lines_removed' => $lines_removed, 'max_streak' => $max_streak, 
+          'current_streak' => $current_streak, 'total_commits' => $total_commits));
+  return $graph;
+}
+
+function bitbucket_commits_sequential_streak() {
+  $end_date = date('Y-m-d');
+  // If the end date is not a Saturday, get the date until the next Saturday.
+  if (date('l', strtotime($end_date)) != 'Saturday') {
+    $end_date = date('Y-m-d', strtotime('next Saturday', strtotime($end_date)));
+  }
+
+  $result = db_select('commits_digest', 'c')
+            ->fields('c')
+            ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
+            ->condition('commit_date', $end_date, '<=')
+            ->orderBy('commit_date', 'ASC')
+            ->execute();       
+  $tomorrow = NULL;
+  $sequential = $max_sequential = 0;
+  while($ddata = $result->fetchObject()) {
+    list($commit_date, $x) = explode(' ', $ddata->commit_date);
+    if ($commit_date == $tomorrow) {
+      $sequential++;
+    }
+    else {
+      if ($sequential > $max_sequential) {
+        $max_sequential = $sequential;
+      }
+      $sequential = 0;
+    }
+    $tomorrow = date('Y-m-d', strtotime('tomorrow', strtotime($commit_date)));
+  }
+  return $max_sequential;
+}
+
+function bitbucket_commits_current_streak() {
+  $end_date = $yesterday = date('Y-m-d');
+  $sequential = 0;
+  $result = db_select('commits_digest', 'c')
+            ->fields('c')
+            ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
+            ->condition('commit_date', $end_date, '<=')
+            ->orderBy('commit_date', 'DESC')
+            ->execute();
+  while($ddata = $result->fetchObject()) {
+    list($commit_date, $x) = explode(' ', $ddata->commit_date);
+    if ($commit_date == $yesterday) {
+      $sequential++;
+    }
+    else {
+      $max_sequential = $sequential;
+      break;
+    }
+    $yesterday = date('Y-m-d', strtotime('yesterday', strtotime($commit_date)));
+  }
+  return $max_sequential;
+}
+
+function bitbucket_commits_total_commits() {
+  $end_date = $yesterday = date('Y-m-d');
+  $result = db_query("SELECT SUM(commits) AS commits 
+                      FROM {commits_digest} 
+                      WHERE commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)");
+  $lines = $result->fetchObject();
+  return $lines->commits;
 }
