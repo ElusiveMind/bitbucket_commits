@@ -314,7 +314,7 @@ function _bitbucket_commits_retrieve() {
           // timezone for storage. Doing so here, enables our other time-sensitive
           // queries to work properly.       
           $commit->date = new DateTime($commit->date, new DateTimeZone('UTC'));
-          $commit->date->setTimezone(new DateTimeZone(date_default_timezone()));
+          $commit->date->setTimezone(new DateTimeZone('America/New_York'));
           $the_date = (array) $commit->date;
           $the_date['commit_date'] = (array) $commit->date->date;
           list($commit_date, $commit_time) = explode(' ', $the_date['date']);
@@ -480,7 +480,7 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   $result = curl_exec ($ch);
   curl_close($ch);
-
+  
   if ($result == 'Rate limit for this resource has been exceeded') {
     return FALSE;
   }
@@ -961,7 +961,7 @@ function bitbucket_commits_sequential_streak() {
  */
 function bitbucket_commits_current_streak() {
   $end_date = $yesterday = date('Y-m-d');
-  $sequential = 0;
+  $sequential = $max_sequential = 0;
   $result = db_select('commits_digest', 'c')
             ->fields('c')
             ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")

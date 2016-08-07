@@ -1,3 +1,10 @@
+<div class="col-md-12">
+  <div class="section-title">
+    <h1 class="section-heading">Code Committed</h1>
+    <h2 class="section-subheading-nobs">Contributions Both Public and Private</h2>
+  </div>
+</div>
+
 <div class="bitbucket-statistics">
   <?php echo $graph; ?>
   <div class="statistics">
@@ -26,3 +33,5 @@
     <?php endforeach;?>
   </div>
 </div>
+
+<br /><br />
