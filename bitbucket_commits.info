@@ -3,3 +3,5 @@ description = Generates graphs based on the number of bitbucket commits based on
 package = Other
 core = 7.x
 configure = admin/config/bitbucket-commits
+
+stylesheets[all][] = css/bb.css

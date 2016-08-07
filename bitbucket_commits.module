@@ -731,19 +731,36 @@ function theme_bitbucket_commits_lines_removed($data = NULL) {
  * @return array $commits
  * An array of the commit counts and projects sorted in reverse order by commit count.
  */
-function bitbucket_commits_project_commit_interval_count($interval = 14, $date = NULL) {
+function bitbucket_commits_project_commit_interval_count($interval = 14, $date = NULL, $is_private = TRUE) {
   if (empty($date)) {
     $date = date('Y-m-d');
   }
-  $result = db_query("SELECT COUNT(*) as commit_count, project FROM commits 
-                      WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY) 
+  if (empty($is_private)) {
+    $is_private = 0;
+  }
+  $result = db_query("SELECT COUNT(*) as commit_count, project
+                      FROM {commits}
+                      WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY)
                       GROUP by project ORDER BY commit_count DESC");
   $commits = array();
-  while($cdata = $result->fetchObject) {
-    $commits[] = array(
-      'project' => $cdata->project,
-      'commits' => $cdata->commit_count,
-    );
+  if ($result->rowCount() > 0) {
+    while($cdata = $result->fetchObject()) {
+      $private = db_query('SELECT * FROM {commits_projects} 
+                           WHERE full_name = :full_name', array(':full_name' => $cdata->project));
+      if ($private->rowCount() > 0) {
+        $pdata = $private->fetchObject();
+      }
+      if (empty($is_private) && $pdata->is_private == 1) {
+        continue;
+      }
+      $commits[] = array(
+        'project' => $pdata->full_name,
+        'commits' => $cdata->commit_count,
+        'description' => $pdata->description,
+        'website' => $pdata->website,
+        'language' => $pdata->language,
+      );
+    }
   }
   return $commits;
 }
@@ -814,7 +831,9 @@ function bitbucket_commits_block_view($delta = '') {
       $block['content'] = array(
         '#markup' => bitbucket_commits_block_html(),
         '#attached' => array(
-          drupal_get_path('module', 'bitbucket_commits') . '/css/style.css',
+          'css' => array(
+            drupal_get_path('module', 'bitbucket_commits') . '/css/style.css',
+          ),
         ),
       );
       break;
@@ -867,6 +886,15 @@ function bitbucket_commits_block_configure($delta = '') {
 }
 
 /**
+ * Implements hook_block_save().
+ */
+function bitbucket_commits_block_save($delta, $edit) {
+  variable_set('bitbucket_commits_recent_commits_repo_days', $edit['bitbucket_commits_recent_commits_repo_days']);
+  variable_set('bitbucket_commits_recent_commits_repo_days_private', $edit['bitbucket_commits_recent_commits_repo_days_private']);
+  variable_set('bitbucket_commits_display_line_stats', $edit['bitbucket_commits_display_line_stats']);
+}
+
+/**
  * Output the HTML for our block.
  */
 function bitbucket_commits_block_html() {
@@ -876,7 +904,7 @@ function bitbucket_commits_block_html() {
   $max_streak = bitbucket_commits_sequential_streak();
   $current_streak = bitbucket_commits_current_streak();
   $total_commits = bitbucket_commits_total_commits();
-  
+
   $commits = array();
   $lines_added = $lines_removed = NULL;
   $graph = bitbucket_commit_year_box_graph(date('Y-m-d'));
@@ -894,6 +922,9 @@ function bitbucket_commits_block_html() {
   return $graph;
 }
 
+/**
+ * Get the most sequential streak for this configuration.
+ */
 function bitbucket_commits_sequential_streak() {
   $end_date = date('Y-m-d');
   // If the end date is not a Saturday, get the date until the next Saturday.
@@ -925,6 +956,9 @@ function bitbucket_commits_sequential_streak() {
   return $max_sequential;
 }
 
+/**
+ * Get the current sequential streak for this configuration.
+ */
 function bitbucket_commits_current_streak() {
   $end_date = $yesterday = date('Y-m-d');
   $sequential = 0;
@@ -948,6 +982,9 @@ function bitbucket_commits_current_streak() {
   return $max_sequential;
 }
 
+/**
+ * Get the total number of commits for the last year.
+ */
 function bitbucket_commits_total_commits() {
   $end_date = $yesterday = date('Y-m-d');
   $result = db_query("SELECT SUM(commits) AS commits 

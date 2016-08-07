@@ -1,0 +1,75 @@
+.bitbucket-statistics {
+  width: 721px;
+  margin: 0px auto;
+  font-family: Tahoma, Verdana, sans-serif;
+  font-size: 12pt;
+  color: #909090;
+}
+
+.statistics {
+  width: 680px;
+  margin: 0px auto;
+  font-family: Tahoma, Verdana, sans-serif;
+  font-size: 12pt;
+}
+
+.clear {
+  clear: both;
+}
+
+.bitbucket-statistics .total-commits,
+.bitbucket-statistics .longest-streak {
+  float: left;
+  width: 33%;
+  border-left: 1px solid #D0D0D0;
+  text-align: center;
+}
+
+.bitbucket-statistics .current-streak {
+  float: left;
+  width: 33%;
+  border-left: 1px solid #D0D0D0;
+  border-right: 1px solid #D0D0D0;
+  text-align: center;
+}
+
+.bitbucket-statistics h3 {
+  font-size: 14pt;
+  margin: 28px 0 0;
+  padding: 0;
+}
+
+.bitbucket-statistics p.lines{
+  padding: 10px 0px 0px 0px;
+  font-size: 10pt;
+  text-align: center;
+}
+
+.bitbucket-statistics p.commits-longest-streak {
+  margin: 0px;
+  padding: 0px;
+  font-size: 14pt;
+}
+
+.bitbucket-statistics .month,
+.bitbucket-statistics .wday {
+  font-size: 8pt;
+}
+
+.bitbucket-statistics .day:hover {
+  stroke: #000000;
+}
+
+.bitbucket-statistics p.commit-line {
+  margin: 0px;
+  padding: 0px;
+  font-size: 10pt;
+  color: #800000;
+  font-weight: bold;
+}
+
+.bitbucket-statistics .line {
+  border-top: 1px solid #000080;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
