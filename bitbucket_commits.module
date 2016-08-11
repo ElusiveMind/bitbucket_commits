@@ -960,7 +960,8 @@ function bitbucket_commits_sequential_streak() {
  * Get the current sequential streak for this configuration.
  */
 function bitbucket_commits_current_streak() {
-  $end_date = $yesterday = date('Y-m-d');
+  $end_date = $today = date('Y-m-d');
+  $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $sequential = $max_sequential = 0;
   $result = db_select('commits_digest', 'c')
             ->fields('c')
@@ -970,7 +971,7 @@ function bitbucket_commits_current_streak() {
             ->execute();
   while($ddata = $result->fetchObject()) {
     list($commit_date, $x) = explode(' ', $ddata->commit_date);
-    if ($commit_date == $yesterday) {
+    if ($commit_date == $yesterday || $commit_date == $today) {
       $sequential++;
     }
     else {
