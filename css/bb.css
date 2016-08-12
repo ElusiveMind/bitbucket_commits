@@ -73,3 +73,13 @@
   margin-top: 10px;
   margin-bottom: 10px;
 }
+
+.bitbucket-statistics a.bitbucket-link {
+  color: #800000;
+  text-decoration: underline;
+}
+
+.bitbucket-statistics a.bitbucket-link:hover {
+  color: #800000;
+  text-decoration: underline;
+}

@@ -759,6 +759,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
         'description' => $pdata->description,
         'website' => $pdata->website,
         'language' => $pdata->language,
+        'is_private' => $pdata->is_private,
       );
     }
   }

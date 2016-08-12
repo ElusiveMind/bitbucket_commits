@@ -28,7 +28,9 @@
 
     <div class="line"></div>
     <?php foreach($commits as $commit): ?>
-      <?php //print_r($commit); exit(); ?>
+      <?php if ($commit['is_private'] != TRUE): ?>
+        <?php $commit['project'] = '<a class="bitbucket-link" href="https://bitbucket.org/' . $commit['project'] . '">' . $commit['project'] . '</a>'; ?>
+      <?php endif; ?>
       <?php $website = NULL; ?>
       <?php if (!empty($commit['website'])) { $website = " (" . $commit['website'] . ")"; } ?>
       <p class="commit-line">Published <?php echo $commit['commits'];?> commits to <?php echo $commit['project'];?>. <?php echo $website;?></p>
