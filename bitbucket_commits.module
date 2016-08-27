@@ -588,7 +588,7 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
     $color_scheme = variable_get('bitbucket_activity_color_scheme', 'green');
     $color['grey'] = array('#EAEAEA', '#C0C0C0', '#A0A0A0', '#606060', '#202020');
-    $color['red'] = array('#EAEAEA', '#FFC0C0', '#FFA0A0', '#FF6060', '#FF2020');
+    $color['red'] = array('#EAEAEA', '#FFC0C0', '#FF9090', '#FF6060', '#FF2020');
     $color['green'] = array('#EAEAEA', '#C0D0C0', '#A0D0A0', '#60D060', '#20D020');
     $color['blue'] = array('#EAEAEA', '#C0C0FF', '#A0A0FF', '#6060FF', '#2020FF');
     $color['yellow'] = array('#EAEAEA', '#DDDD20', '#CCCC20', '#BBBB20', '#AAAA20');
