@@ -875,7 +875,7 @@ function bitbucket_commits_block_configure($delta = '') {
         '1' => t('Yes'),
         '0' => t('No'),
       ),
-      '#default_value' => variable_get('bitbucket_commits_display_line_stats', 1),
+      '#default_value' => variable_get('bitbucket_commits_display_line_stats', 0),
       '#weight' => 11,
     );
   }
@@ -897,7 +897,7 @@ function bitbucket_commits_block_save($delta, $edit) {
 function bitbucket_commits_block_html() {
   $repo_days = variable_get('bitbucket_commits_recent_commits_repo_days', 0);
   $private = variable_get('bitbucket_commits_recent_commits_repo_days_private', 1);
-  $line_stats = variable_get('bitbucket_commits_display_line_stats', 1).
+  $line_stats = variable_get('bitbucket_commits_display_line_stats', 0);
   $max_streak = bitbucket_commits_sequential_streak();
   $current_streak = bitbucket_commits_current_streak();
   $total_commits = bitbucket_commits_total_commits();
