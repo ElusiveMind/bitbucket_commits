@@ -23,8 +23,11 @@
       <p class="commits-longest-current"><?php echo $current_streak;?></p>
     </div>
     <div class="clear"></div>
+    
+    <?php if (!empty($line_stats)): ?>
     <p class="lines"><b>Lines Added:</b> <?php echo number_format($lines_added, 0);?> - 
                         Lines Removed:</b> <?php echo number_format($lines_removed, 0);?> </p>
+    <?php endif; ?>
 
     <div class="line"></div>
     <?php foreach($commits as $commit): ?>

@@ -211,10 +211,6 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
   return $form;
 }
 
-function _bitbucket_commits_custom_colors_form_elements(&$form, $extra = '') {
-
-}
-
 /**
  * Submit callback for the displays administrative form.
  */
@@ -519,7 +515,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
       'variables' => array('end_date' => NULL, 'color_scheme' => NULL, 'color1' => NULL, 'color2' => NULL, 'color3' => NULL, 'color4' => NULL),
     ),
     'bitbucket_commits_block' => array(
-      'variables' => array('graph' => NULL, 'lines_added' => NULL, 'lines_removed' => NULL, 'commits' => NULL, 'max_streak' => NULL, 'current_streak' => NULL, 'total_commits' => NULL),
+      'variables' => array('graph' => NULL, 'lines_added' => NULL, 'lines_removed' => NULL, 'commits' => NULL, 'max_streak' => NULL, 'current_streak' => NULL, 'total_commits' => NULL, 'line_stats' => NULL),
       'template' => 'bitbucket-commits-block',
     ),
   );
@@ -917,7 +913,7 @@ function bitbucket_commits_block_html() {
     $lines_removed = theme('bitbucket_commits_lines_removed');
   }
   $graph =  theme('bitbucket_commits_block', 
-    array('graph' => $graph, 'commits' => $commits, 'lines_added' => $lines_added, 
+    array('graph' => $graph, 'commits' => $commits, 'line_stats' => $line_stats, 'lines_added' => $lines_added, 
           'lines_removed' => $lines_removed, 'max_streak' => $max_streak, 
           'current_streak' => $current_streak, 'total_commits' => $total_commits));
   return $graph;
