@@ -927,23 +927,18 @@ function bitbucket_commits_block_html() {
  * Get the most sequential streak for this configuration.
  */
 function bitbucket_commits_sequential_streak() {
-  $end_date = date('Y-m-d');
-  // If the end date is not a Saturday, get the date until the next Saturday.
-  if (date('l', strtotime($end_date)) != 'Saturday') {
-    $end_date = date('Y-m-d', strtotime('next Saturday', strtotime($end_date)));
-  }
-
+  $end_date = $today = date('Y-m-d');
+  $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $result = db_select('commits_digest', 'c')
             ->fields('c')
             ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
             ->condition('commit_date', $end_date, '<=')
-            ->orderBy('commit_date', 'ASC')
+            ->orderBy('commit_date', 'DESC')
             ->execute();       
-  $tomorrow = NULL;
   $sequential = $max_sequential = 0;
   while($ddata = $result->fetchObject()) {
     list($commit_date, $x) = explode(' ', $ddata->commit_date);
-    if ($commit_date == $tomorrow) {
+    if ($commit_date == $yesterday || $commit_date == $today) {
       $sequential++;
     }
     else {
@@ -952,7 +947,7 @@ function bitbucket_commits_sequential_streak() {
       }
       $sequential = 0;
     }
-    $tomorrow = date('Y-m-d', strtotime('tomorrow', strtotime($commit_date)));
+    $yesterday = date('Y-m-d', strtotime('yesterday', strtotime($commit_date)));
   }
   return $max_sequential;
 }
