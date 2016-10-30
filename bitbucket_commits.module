@@ -236,13 +236,13 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
       }
     }
   }
-  
+
   variable_set('bitbucket_activity_color_scheme', $form_state['values']['bitbucket_activity_color_scheme']);
   variable_set('bitbucket_activity_custom_color1', $form_state['values']['bitbucket_activity_custom_color1']);
   variable_set('bitbucket_activity_custom_color2', $form_state['values']['bitbucket_activity_custom_color2']);
   variable_set('bitbucket_activity_custom_color3', $form_state['values']['bitbucket_activity_custom_color3']);
   variable_set('bitbucket_activity_custom_color4', $form_state['values']['bitbucket_activity_custom_color4']);
-  
+
   drupal_set_message('BitBucket display settings successfully updated.', 'status');
   drupal_goto('admin/config/development/bitbucket/display');    
 }
@@ -292,11 +292,12 @@ function _bitbucket_commits_retrieve() {
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
       $result = _bitbucket_commits_api_call($url, $username, $password);
-      $json = json_decode($result);
-      if ($json == FALSE) {
-        drupal_set_message('BitBucket API rate limit exceeded', 'error');
+      if ($result == FALSE) {
+        drupal_set_message('BitBucket API rate limit exceeded. Repository: ' . $repo, 'error');
+        db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $project));
         break 2;
       }
+      $json = json_decode($result);
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
@@ -307,11 +308,11 @@ function _bitbucket_commits_retrieve() {
             $repository_information = bitbucket_commits_get_repository_information($repo, $username, $password);
             $repositories[$commit->repository->full_name] = $repository_information;
           };
-          
+
           $cid = $commit->hash;
           $project = $commit->repository->full_name;
           $message = $commit->message;
-          
+
           // Do timezone conversion of the date from BitBucket. All their times are in
           // UTC regardles of your timezone settings. Adjust this to Drupal's default
           // timezone for storage. Doing so here, enables our other time-sensitive
@@ -340,13 +341,16 @@ function _bitbucket_commits_retrieve() {
           if ($pass == FALSE) {
             break 2;
           }
-          // If we already have this hash, then continue to the next one.
+
+          // Change in logic. If we run into a commit we already have, it stands to reason
+          // that we have all the commits after this. No need to check the rest of the 
+          // repo. Go to the next repo. 3 loops back
           $check = db_select('commits', 'c')
                     ->fields('c')
                     ->condition('cid', $cid)
                     ->execute();
           if ($check->rowCount() > 0) {
-            continue;
+            break 2;
           }
 
           $files_changed = $lines_added = $lines_removed = 0;
@@ -404,27 +408,6 @@ function _bitbucket_commits_retrieve() {
             'lines_removed' => $lines_removed,
           );
           drupal_write_record('commits', $centry);
-
-          $commits = db_select('commits_digest', 'cd')
-                      ->fields('cd')
-                      ->condition('commit_date', $commit_date . ' 00:00:00')
-                      ->execute();
-          if ($commits->rowCount() > 0) {
-            $commits_data = $commits->fetchObject();
-            $commits_data->commits++;
-            $centry = array(
-              'commit_date' => $commit_date . " 00:00:00",
-              'commits' => $commits_data->commits,
-            );
-            drupal_write_record('commits_digest', $centry, array('commit_date'));
-          }
-          else {
-           $centry = array(
-              'commit_date' => $commit_date . " 00:00:00",
-              'commits' => 1,
-            );
-            drupal_write_record('commits_digest', $centry);
-          }
         }
       } 
       if (!empty($json->next)) {
@@ -483,7 +466,7 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   $result = curl_exec ($ch);
   curl_close($ch);
-  
+ 
   if ($result == 'Rate limit for this resource has been exceeded') {
     return FALSE;
   }
@@ -553,15 +536,13 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
     );
   }
 
-  $result = db_select('commits_digest', 'c')
-            ->fields('c')
-            ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
-            ->condition('commit_date', $end_date, '<=')
-            ->orderBy('commit_date', 'ASC')
-            ->execute();       
+	$result = db_query("SELECT SUBSTR(commit_date, 1, 10) AS commit_date, count(cid) AS commits 
+	                    FROM commits
+	                    WHERE commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)
+	                    GROUP BY substr(commit_date, 1, 10)
+	                    ORDER BY commit_date ASC");     
   while($ddata = $result->fetchObject()) {
-    list($commit_date, $x) = explode(' ', $ddata->commit_date);
-    $graph[$commit_date]['commits'] = $ddata->commits;
+    $graph[$ddata->commit_date]['commits'] = $ddata->commits;
   }
 
   // Sort the graph by date, which is in the key.

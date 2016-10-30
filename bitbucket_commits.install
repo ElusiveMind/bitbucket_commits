@@ -5,22 +5,6 @@
  */
 function bitbucket_commits_schema() {
   $schema = array();
-  $schema['commits_digest'] = array(
-    'fields'=> array(
-      'commit_date' => array(
-        'mysql_type' => 'datetime',
-        'type' => 'datetime',
-        'size' => 'normal',
-        'not null' => TRUE,
-      ),
-      'commits' => array(
-        'type' => 'int',
-        'length' => 11,
-        'not null' => FALSE,
-      ),
-    ),
-    'primary key' => array('commit_date'),
-  );
   $schema['commits'] = array(
     'fields'=> array(
       'cid' => array(
