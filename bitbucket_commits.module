@@ -37,6 +37,13 @@ function bitbucket_commits_menu() {
     'access arguments' => array('access bitbucket settings'),
     'weight' => 3,
   );
+  $items['admin/config/development/bitbucket/clear'] = array(
+    'title' => 'Clear',
+    'page callback' => 'bitbucket_commits_clear',
+    'access callback' => 'user_access',
+    'access arguments' => array('access bitbucket settings'),
+    'weight' => 4,
+  );
   return $items;
 }
 
@@ -985,4 +992,14 @@ function bitbucket_commits_total_commits() {
                       WHERE commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)");
   $lines = $result->fetchObject();
   return $lines->commits;
+}
+
+/**
+ * Clear out all BitBucket statistics
+ */
+function bitbucket_commits_clear() {
+	db_query('TRUNCATE TABLE {commits}');
+	db_query('TRUNCATE TABLE {commits_digest}');
+	drupal_set_message('All BitBucket statistics cleared.', 'status');
+	drupal_goto('admin/config/development/bitbucket/display');
 }

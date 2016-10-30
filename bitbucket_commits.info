@@ -2,6 +2,6 @@ name = Bitbucket Commits
 description = Generates graphs based on the number of bitbucket commits based on a period of time
 package = Other
 core = 7.x
-configure = admin/config/bitbucket-commits
+configure = admin/config/development/bitbucket-commits
 
 stylesheets[all][] = css/bb.css
