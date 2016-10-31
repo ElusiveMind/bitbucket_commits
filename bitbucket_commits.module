@@ -339,7 +339,7 @@ function _bitbucket_commits_retrieve() {
             }
           }
           if ($pass == FALSE) {
-            break 2;
+           continue;
           }
 
           // Change in logic. If we run into a commit we already have, it stands to reason
