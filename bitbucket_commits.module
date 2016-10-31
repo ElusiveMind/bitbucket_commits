@@ -294,7 +294,7 @@ function _bitbucket_commits_retrieve() {
       $result = _bitbucket_commits_api_call($url, $username, $password);
       if ($result == FALSE) {
         drupal_set_message('BitBucket API rate limit exceeded. Repository: ' . $repo, 'error');
-        db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $project));
+        db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
         break 2;
       }
       $json = json_decode($result);
