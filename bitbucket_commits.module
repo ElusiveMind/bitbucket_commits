@@ -408,6 +408,27 @@ function _bitbucket_commits_retrieve() {
             'lines_removed' => $lines_removed,
           );
           drupal_write_record('commits', $centry);
+          
+          $commits = db_select('commits_digest', 'cd')
+                      ->fields('cd')
+                      ->condition('cd.commit_date', $commit_date . ' 00:00:00')
+                      ->execute();
+          if ($commits->rowCount() > 0) {
+            $commits_data = $commits->fetchObject();
+            $commits_data->commits++;
+            $centry = array(
+              'commit_date' => $commit_date . " 00:00:00",
+              'commits' => $commits_data->commits,
+            );
+            drupal_write_record('commits_digest', $centry, array('commit_date'));
+          }
+          else {
+           $centry = array(
+              'commit_date' => $commit_date . " 00:00:00",
+              'commits' => 1,
+            );
+            drupal_write_record('commits_digest', $centry);
+          }
         }
       } 
       if (!empty($json->next)) {
