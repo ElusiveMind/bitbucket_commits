@@ -753,6 +753,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
 
   // Get the list of items we do not wish to display in the list.
   $do_not_display = variable_get('bitbucket_do_not_display');
+  $do_not_display = str_replace("\r", "", $do_not_display); // Windows :(
   $do_not_display = (!empty($do_not_display)) ? explode("\n", $do_not_display) : array();
 
   $result = db_query("SELECT COUNT(*) as commit_count, project
