@@ -657,6 +657,11 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
       'fill_color' => $fill_color, 'tooltip' => $tooltip));
   }
 
+  // To prevent month-wrap, if the last month is the same as the first, then omit the first.
+  if ($month_header[0]['month'] == $month_header[count($month_header)-1]['month']) {
+    array_shift($month_header);
+  }
+
   // Output the last row since it is not tripped by the date catch at the beginning of
   // the loop on the last iteration.
   $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
