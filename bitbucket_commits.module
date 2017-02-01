@@ -89,6 +89,12 @@ function bitbucket_commits_api_settings_form($form, &$form_state) {
     '#type' => 'textarea',
     '#default_value' => variable_get('bitbucket_repositories_line_numbers', NULL),
   );
+  $form['bitbucket_do_not_display'] = array(
+    '#title' => 'Omit These BitBucket Repositories From The List',
+    '#description' => t('Repositories listed here will not be included in the details of number of commits in the last two weeks.'),
+    '#type' => 'textarea',
+    '#default_value' => variable_get('bitbucket_do_not_display', NULL),
+  );
   $form['bitbucket_raw_names'] = array(
     '#title' => 'Other Possible Commit Names',
     '#description' => t('Other names a commit may be logged under aside from your username. Used to assign commits to your statistics. One per line. This can also be a partial name. Will be matched by substring.'),
@@ -123,6 +129,7 @@ function bitbucket_commits_api_settings_form_submit($form, &$form_state) {
     variable_set('bitbucket_repositories_line_numbers', $form_state['values']['bitbucket_repositories_line_numbers']);
     variable_set('bitbucket_username', $form_state['values']['bitbucket_username']);
     variable_set('bitbucket_raw_names', $form_state['values']['bitbucket_raw_names']);
+    variable_set('bitbucket_do_not_display', $form_state['values']['bitbucket_do_not_display']);
     drupal_set_message('BitBucket API settings successfully updated.', 'status');
     drupal_goto('admin/config/development/bitbucket/api');
   }
@@ -743,6 +750,11 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
   if (empty($is_private)) {
     $is_private = 0;
   }
+
+  // Get the list of items we do not wish to display in the list.
+  $do_not_display = variable_get('bitbucket_do_not_display');
+  $do_not_display = (!empty($do_not_display)) ? explode("\n", $do_not_display) : array();
+
   $result = db_query("SELECT COUNT(*) as commit_count, project
                       FROM {commits}
                       WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY)
@@ -750,6 +762,10 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
   $commits = array();
   if ($result->rowCount() > 0) {
     while($cdata = $result->fetchObject()) {
+      // If we're in the do not display array, then pass it by.
+      if (in_array($cdata->project, $do_not_display)) {
+        continue;
+      }
       $private = db_query('SELECT * FROM {commits_projects} 
                            WHERE full_name = :full_name', array(':full_name' => $cdata->project));
       if ($private->rowCount() > 0) {
