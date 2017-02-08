@@ -218,10 +218,19 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
     '#type' => 'markup',
     '#markup' => theme('bitbucket_commits_activity_graph'),
   );
-  $form['bitbucket_activity_color_scheme'] = array(
+
+  $form['bitbucket'] = array(
+    '#type' => 'fieldset',
+    '#title' => 'Bitbucket Settings',
+  );
+  $form['github'] = array(
+    '#type' => 'fieldset',
+    '#title' => 'GitHub Settings',
+  );
+  $form['bitbucket']['bitbucket_activity_color_scheme'] = array(
     '#type' => 'select',
-    '#title' => 'Color Scheme',
-    '#description' => 'Select a color scheme for the contribution activity graph.',
+    '#title' => 'Bitbucket Color Scheme',
+    '#description' => 'Select a color scheme for the contribution activity graph. If using different ones for Bitbucket and GitHub, commits on tbe same day will show a color mixing of the two.',
     '#options' => array(
       'grey' => t('Grey'),
       'red' => t('Red'),
@@ -238,7 +247,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
     '#default_value' => variable_get('bitbucket_activity_color_scheme', 'github'),
     '#required' => TRUE,
   );  
-  $form['bitbucket_activity_custom_color1'] = array(
+  $form['bitbucket']['bitbucket_activity_custom_color1'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 1',
     '#description' => t('The full hex color for the lighest color indicating no activity.'),
@@ -249,7 +258,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
       'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_activity_custom_color2'] = array(
+  $form['bitbucket']['bitbucket_activity_custom_color2'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 2',
     '#description' => t('The full hex color for a light color indicating light activity.'),
@@ -260,7 +269,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
       'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_activity_custom_color3'] = array(
+  $form['bitbucket']['bitbucket_activity_custom_color3'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 3',
     '#description' => t('The full hex color for a light color indicating medium activity.'),
@@ -271,7 +280,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
       'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_activity_custom_color4'] = array(
+  $form['bitbucket']['bitbucket_activity_custom_color4'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 4',
     '#description' => t('The full hex color for a dark color indicating moderate-heavy activity.'),
@@ -282,7 +291,7 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
       'visible' => array('select[name="bitbucket_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_activity_custom_color5'] = array(
+  $form['bitbucket']['bitbucket_activity_custom_color5'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 5',
     '#description' => t('The full hex color for the darkest color indicating heavy activity.'),
@@ -294,10 +303,10 @@ function bitbucket_commits_display_settings_form($form, &$form_state) {
     ),
   );
 
-$form['bitbucket_github_activity_color_scheme'] = array(
+$form['github']['bitbucket_github_activity_color_scheme'] = array(
     '#type' => 'select',
-    '#title' => 'Color Scheme',
-    '#description' => 'Select a color scheme for the contribution activity graph.',
+    '#title' => 'GitHub Color Scheme',
+    '#description' => 'Select a color scheme for the contribution activity graph. If using different ones for Bitbucket and GitHub, commits on tbe same day will show a color mixing of the two.',
     '#options' => array(
       'grey' => t('Grey'),
       'red' => t('Red'),
@@ -314,7 +323,7 @@ $form['bitbucket_github_activity_color_scheme'] = array(
     '#default_value' => variable_get('bitbucket_github_activity_color_scheme', 'github'),
     '#required' => TRUE,
   );  
-  $form['bitbucket_github_activity_custom_color1'] = array(
+  $form['github']['bitbucket_github_activity_custom_color1'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 1',
     '#description' => t('The full hex color for the lighest color indicating no activity.'),
@@ -325,7 +334,7 @@ $form['bitbucket_github_activity_color_scheme'] = array(
       'visible' => array('select[name="bitbucket_github_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_github_activity_custom_color2'] = array(
+  $form['github']['bitbucket_github_activity_custom_color2'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 2',
     '#description' => t('The full hex color for a light color indicating light activity.'),
@@ -336,7 +345,7 @@ $form['bitbucket_github_activity_color_scheme'] = array(
       'visible' => array('select[name="bitbucket_github_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_github_activity_custom_color3'] = array(
+  $form['github']['bitbucket_github_activity_custom_color3'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 3',
     '#description' => t('The full hex color for a light color indicating medium activity.'),
@@ -347,7 +356,7 @@ $form['bitbucket_github_activity_color_scheme'] = array(
       'visible' => array('select[name="bitbucket_github_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_github_activity_custom_color4'] = array(
+  $form['github']['bitbucket_github_activity_custom_color4'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 4',
     '#description' => t('The full hex color for a dark color indicating moderate-heavy activity.'),
@@ -358,7 +367,7 @@ $form['bitbucket_github_activity_color_scheme'] = array(
       'visible' => array('select[name="bitbucket_github_activity_color_scheme"]' => array('value' => 'custom')),
     ),
   );
-  $form['bitbucket_github_activity_custom_color5'] = array(
+  $form['github']['bitbucket_github_activity_custom_color5'] = array(
     '#type' => 'textfield',
     '#title' => 'Custom Color 5',
     '#description' => t('The full hex color for the darkest color indicating heavy activity.'),
@@ -830,9 +839,10 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
       'fill_color' => $fill_color, 'tooltip' => $tooltip));
   }
 
-  // To prevent month-wrap, if the last month is the same as the first, then omit the first.
-  if ($month_header[0]['month'] == $month_header[count($month_header)-1]['month']) {
-    array_shift($month_header);
+  // To prevent months from overlapping. If the two months are within two rows of each
+  // other, then the first one will be deleted.
+  if (($month_header[0]['x']+26) == $month_header[1]['x']) {
+      array_shift($month_header);
   }
 
   // Output the last row since it is not tripped by the date catch at the beginning of
