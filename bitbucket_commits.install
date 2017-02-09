@@ -18,6 +18,11 @@ function bitbucket_commits_schema() {
         'length' => 11,
         'not null' => FALSE,
       ),
+      'repository' => array(
+        'type' => 'varchar',
+        'length' => 24,
+        'not null' => FALSE,
+      ),
     ),
     'primary key' => array('commit_date'),
   );
@@ -59,6 +64,11 @@ function bitbucket_commits_schema() {
         'length' => 11,
         'default' => 0,
       ),
+      'repository' => array(
+        'type' => 'varchar',
+        'length' => 24,
+        'not null' => FALSE,
+      ),
     ),
     'primary key' => array('cid'),
   );
@@ -95,7 +105,12 @@ function bitbucket_commits_schema() {
         'size' => 'normal',
         'not null' => FALSE,
       ),
-    ),
+      'repository' => array(
+        'type' => 'varchar',
+        'length' => 24,
+        'not null' => FALSE,
+      ),
+   ),
     'primary key' => array('full_name'),
   );
   return $schema;
@@ -116,7 +131,33 @@ function bitbucket_commits_uninstall() {
   variable_del('bitbucket_commits_recent_commits_repo_days_private');
 }
 
+/**
+ * Add our table for our commit projects.
+ */
 function bitbucket_commits_update_7101() {
   $schema = bitbucket_commits_schema();
   db_create_table('commits_projects', $schema['commits_projects']);
+}
+
+/**
+ * Add our schema for multiple repositories, specifically GitHub.
+ */
+function bitbucket_commits_update_7102() {
+  $schema = bitbucket_commits_schema();
+  db_add_field('commits_digest', 'repository', $schema['commits_digest']['fields']['repository']);
+  db_add_field('commits', 'repository', $schema['commits']['fields']['repository']);
+  db_add_field('commits_projects', 'repository',  $schema['commits_projects']['fields']['repository']);
+
+  // Prepopulate them with Bitbucket since that is all we have right now.
+  db_update('commits_digest')
+    ->fields(array('repository' => 'bitbucket'))
+    ->execute();
+
+  db_update('commits')
+    ->fields(array('repository' => 'bitbucket'))
+    ->execute();
+
+  db_update('commits_projects')
+    ->fields(array('repository' => 'bitbucket'))
+    ->execute();
 }
