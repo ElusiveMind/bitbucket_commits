@@ -481,7 +481,6 @@ function _bitbucket_commits_retrieve() {
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
       $result = _bitbucket_commits_api_call($url, $username, $password);
-      $result = $result['result'];
 
       if ($result == FALSE) {
         drupal_set_message('Bitbucket API rate limit exceeded. Repository: ' . $repo, 'error');
@@ -557,7 +556,6 @@ function _bitbucket_commits_retrieve() {
           if ($lines == TRUE && !empty($commit->links->patch->href)) {
             $patch = $commit->links->patch->href;
             $file = _bitbucket_commits_api_call($patch, $username, $password);
-            $file = $file['result'];
             $lines = explode("\n", $file);
 
             $parse_line = 0;
@@ -676,44 +674,50 @@ function _bitbucket_commits_github_retrieve() {
       continue;
     }
     $repo = trim($repo);
-    $url = 'https://api.github.com/repos/' . $username . '/' . $repo . '/commits';
+    $url = 'https://api.github.com/repos/' . $repo . '/commits?author=' . $username;
     do {
-      $result = _bitbucket_commits_api_call($url, $username, $password);
-      $header = $result['header'];
-      $result = $result['result'];
-      if ($result == FALSE) {
+      $json = _bitbucket_commits_api_call($url, $username, $password);
+
+      if ($json->next) {
+        $next = $json_next;
+        unset($json->next);
+      }
+      if ($json == FALSE) {
         drupal_set_message('Bitbucket API rate limit exceeded. Repository: ' . $repo, 'error');
         db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
         break 2;
       }
-      $json = json_decode($result);
-      if (empty($json->values)) {
+
+      if (empty($json)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
       }
-      if (count($json->values) > 0) {
-        foreach ($json->values as $commit) {
-          if (!array_key_exists($commit->repository->full_name, $repositories)) {
-            $repository_information = bitbucket_commits_get_repository_information($repo, $username, $password);
+      if (count($json) > 0) {
+        foreach ($json as $commit) {
+          if (0 && !array_key_exists($repo, $repositories)) {
+            $repository_information = bitbucket_commits_github_get_repository_information($repo, $username, $password);
             $repositories[$commit->repository->full_name] = $repository_information;
           };
 
-          $cid = $commit->hash;
+          $cid = $commit->sha;
           $project = $commit->repository->full_name;
-          $message = $commit->message;
+          $message = $commit->commit->message;
 
           // Do timezone conversion of the date from BitBucket. All their times are in
           // UTC regardles of your timezone settings. Adjust this to Drupal's default
           // timezone for storage. Doing so here, enables our other time-sensitive
-          // queries to work properly.       
-          $commit->date = new DateTime($commit->date, new DateTimeZone('UTC'));
-          $commit->date->setTimezone(new DateTimeZone('America/New_York'));
-          $the_date = (array) $commit->date;
-          $the_date['commit_date'] = (array) $commit->date->date;
+          // queries to work properly. 
+          print "<pre>";
+          print_r($commit->commit->committer->date). "\n\n";      
+          $commit->commit->committer->date = new DateTime($commit->commit->committer->date, new DateTimeZone('UTC'));
+          $commit->commit->committer->date->setTimezone(new DateTimeZone('America/New_York'));
+          $the_date = (array) $commit->commit->committer->date;
+
           list($commit_date, $commit_time) = explode(' ', $the_date['date']);
           list($commit_time) = explode('.', $commit_time);
-          $commit->date = $commit_date . ' ' . $commit_time;
+          $commit->commit->committer->date = $commit_date . ' ' . $commit_time;
 
+          /* 
           $pass = FALSE;
           if (!empty($commit->author)) {
             if (!empty($commit->author->user->username) && $commit->author->user->username == $username) {
@@ -730,7 +734,8 @@ function _bitbucket_commits_github_retrieve() {
           if ($pass == FALSE) {
            continue;
           }
-
+          */
+          
           // Change in logic. If we run into a commit we already have, it stands to reason
           // that we have all the commits after this. No need to check the rest of the 
           // repo. Go to the next repo. 3 loops back
@@ -754,8 +759,7 @@ function _bitbucket_commits_github_retrieve() {
           }
           if ($lines == TRUE && !empty($commit->links->patch->href)) {
             $patch = $commit->links->patch->href;
-            $file = _bitbucket_commits_api_call($patch, $username, $password);
-            $file = $file['result'];
+            $file = _bitbucket_commits_api_call($patch, $username, $password, FALSE);
             $lines = explode("\n", $file);
 
             $parse_line = 0;
@@ -796,7 +800,7 @@ function _bitbucket_commits_github_retrieve() {
             'files_changed' => $files_changed,
             'lines_added' => $lines_added,
             'lines_removed' => $lines_removed,
-            'repository' => 'bitbucket',
+            'repository' => 'github',
           );
           drupal_write_record('commits', $centry);
           
@@ -817,16 +821,16 @@ function _bitbucket_commits_github_retrieve() {
            $centry = array(
               'commit_date' => $commit_date . " 00:00:00",
               'commits' => 1,
-              'repository' => 'bitbucket',
+              'repository' => 'github',
             );
             drupal_write_record('commits_digest', $centry);
           }
         }
       } 
-      if (!empty($json->next)) {
-        $url = $json->next;
+      if (!empty($next)) {
+        $url = $next;
       }
-    } while(!empty($json->next));
+    } while(!empty($next));
   }
   // Save the information on our repositories to the database.
   if (count($repositories) > 0) {
@@ -841,7 +845,7 @@ function _bitbucket_commits_github_retrieve() {
           'website' => $repository->website,
           'language' => $repository->language,
           'description' => $repository->description,
-          'repository' => 'bitbucket'
+          'repository' => 'github'
           ))
         ->execute();
     }
@@ -863,7 +867,7 @@ function _bitbucket_commits_github_retrieve() {
  * @return string $results
  * The JSON string from BitBucket to be parsed.
  */
-function _bitbucket_commits_api_call($url, $username, $password) {
+function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE) {
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_URL, $url);
   curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -879,7 +883,7 @@ function _bitbucket_commits_api_call($url, $username, $password) {
       "Authorization: Basic " . base64_encode($username . ":" . $password)
     )
   );
-  
+
   curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
   $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   $response = curl_exec ($ch);
@@ -891,10 +895,32 @@ function _bitbucket_commits_api_call($url, $username, $password) {
   curl_close($ch);
 
   if ($result == 'Rate limit for this resource has been exceeded') {
-    return FALSE;
+    return array(FALSE);
   }
 
-  return array('header' => $header, 'result' => $result);
+
+  if ($decode == TRUE) {
+    $next = NULL;
+    $headers = explode("\n", $header);
+    foreach($headers as $line) {
+      list($param, $value) = explode(': ', $line);
+      if ($param == "Link") {
+        for($i=0; $i<strlen($value); $i++) {
+          if (substr($value, $i, 1) == "<") {
+            $start = $i + 1;
+          }
+          if (substr($value, $i, 1) == ">") {
+            $end = $i - 1;
+            break;
+          }
+        }
+        $next = substr($value, $start, $end);
+      }
+    }
+    $result = json_decode($result);
+    $result['next'] = $next;
+  }
+  return $result;
 }
 
 /**
@@ -1207,7 +1233,6 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
 function bitbucket_commits_get_repository_information($repo, $username, $password) {
   $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo;
   $result = _bitbucket_commits_api_call($url, $username, $password);
-  $result = $result['result'];
   return $result;
 }
 
