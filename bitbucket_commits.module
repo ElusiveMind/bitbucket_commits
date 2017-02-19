@@ -677,9 +677,8 @@ function _bitbucket_commits_github_retrieve() {
     $url = 'https://api.github.com/repos/' . $repo . '/commits?author=' . $username;
     do {
       $json = _bitbucket_commits_api_call($url, $username, $password);
-
-      if ($json->next) {
-        $next = $json_next;
+      if (!empty($json->next)) {
+        $next = $json->next;
         unset($json->next);
       }
       if ($json == FALSE) {
@@ -694,47 +693,30 @@ function _bitbucket_commits_github_retrieve() {
       }
       if (count($json) > 0) {
         foreach ($json as $commit) {
-          if (0 && !array_key_exists($repo, $repositories)) {
+          if (!array_key_exists($repo, $repositories)) {
             $repository_information = bitbucket_commits_github_get_repository_information($repo, $username, $password);
-            $repositories[$commit->repository->full_name] = $repository_information;
+            $repositories[$repository_information->full_name] = $repository_information;
           };
 
+          if (empty($commit->sha)) {
+            continue;
+          }
+
           $cid = $commit->sha;
-          $project = $commit->repository->full_name;
+          $project = $repo;
           $message = $commit->commit->message;
 
           // Do timezone conversion of the date from BitBucket. All their times are in
           // UTC regardles of your timezone settings. Adjust this to Drupal's default
           // timezone for storage. Doing so here, enables our other time-sensitive
           // queries to work properly. 
-          print "<pre>";
-          print_r($commit->commit->committer->date). "\n\n";      
           $commit->commit->committer->date = new DateTime($commit->commit->committer->date, new DateTimeZone('UTC'));
           $commit->commit->committer->date->setTimezone(new DateTimeZone('America/New_York'));
           $the_date = (array) $commit->commit->committer->date;
 
           list($commit_date, $commit_time) = explode(' ', $the_date['date']);
           list($commit_time) = explode('.', $commit_time);
-          $commit->commit->committer->date = $commit_date . ' ' . $commit_time;
-
-          /* 
-          $pass = FALSE;
-          if (!empty($commit->author)) {
-            if (!empty($commit->author->user->username) && $commit->author->user->username == $username) {
-              $pass = TRUE;
-            }
-            elseif (!empty($commit->author->raw) && $commit->author->raw != $username) {
-              foreach($raw_usernames as $raw_username) {
-                if (strpos(strtolower($commit->author->raw), strtolower(trim($raw_username)))) {
-                  $pass = TRUE;
-                }
-              }
-            }
-          }
-          if ($pass == FALSE) {
-           continue;
-          }
-          */
+          $commit->date = $commit_date . ' ' . $commit_time;
           
           // Change in logic. If we run into a commit we already have, it stands to reason
           // that we have all the commits after this. No need to check the rest of the 
@@ -757,39 +739,12 @@ function _bitbucket_commits_github_retrieve() {
               break;
             }
           }
-          if ($lines == TRUE && !empty($commit->links->patch->href)) {
-            $patch = $commit->links->patch->href;
-            $file = _bitbucket_commits_api_call($patch, $username, $password, FALSE);
-            $lines = explode("\n", $file);
+          if ($lines == TRUE && !empty($commit->url)) {
+            $decoded = _bitbucket_commits_api_call($commit->url, $username, $password, FALSE);
 
-            $parse_line = 0;
-            foreach($lines as $key => $line) {
-              if (strpos($line, 'changed')) {
-                $parse_line = $key;
-                break;
-              }
-            }
-            if ($parse_line != 0) {
-              $lines[$parse_line] = trim($lines[$parse_line]);
-              $items = explode(', ', $lines[$parse_line]);
-
-              $files = (!empty($items[0])) ? $items[0] : 0;
-              $plus = (!empty($items[1])) ? $items[1] : 0;
-              $minus = (!empty($items[2])) ? $items[2] : 0;
-
-              if (!empty($files)) {
-                $files = explode(' ', $files);
-                $files_changed = (int) $files[0];
-              }
-              if (!empty($plus)) {
-                $plus = explode(' ', $plus);
-                $lines_added = (int) $plus[0];
-              }
-              if (!empty($minus)) {
-                $minus = explode(' ', $minus);
-                $lines_removed = (int) $minus[0];
-              }
-            }
+            $files_changed = count($decoded->files);
+            $lines_added = $decoded->stats->additions;
+            $lines_removed = $decoded->stats->deletions;
           }
 
           $centry = array(
@@ -802,8 +757,9 @@ function _bitbucket_commits_github_retrieve() {
             'lines_removed' => $lines_removed,
             'repository' => 'github',
           );
+
           drupal_write_record('commits', $centry);
-          
+
           $commits = db_select('commits_digest', 'cd')
                       ->fields('cd')
                       ->condition('cd.commit_date', $commit_date . ' 00:00:00')
@@ -835,14 +791,14 @@ function _bitbucket_commits_github_retrieve() {
   // Save the information on our repositories to the database.
   if (count($repositories) > 0) {
     foreach($repositories as $repository) {
-      $is_private = ($repository->is_private == 1) ? 1 : 0;
+      $is_private = ($repository->private == 1) ? 1 : 0;
       db_merge('commits_projects')
         ->key(array('full_name' => $repository->full_name))
         ->fields(array(
           'full_name' => $repository->full_name,
           'name' => $repository->name,
           'is_private' => $is_private,
-          'website' => $repository->website,
+          'website' => $repository->html_url,
           'language' => $repository->language,
           'description' => $repository->description,
           'repository' => 'github'
@@ -898,13 +854,12 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
     return array(FALSE);
   }
 
-
   if ($decode == TRUE) {
     $next = NULL;
     $headers = explode("\n", $header);
     foreach($headers as $line) {
-      list($param, $value) = explode(': ', $line);
-      if ($param == "Link") {
+      $params = explode(': ', $line);
+      if ($params[0] == "Link" && !empty($params[1])) {
         for($i=0; $i<strlen($value); $i++) {
           if (substr($value, $i, 1) == "<") {
             $start = $i + 1;
@@ -917,10 +872,14 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
         $next = substr($value, $start, $end);
       }
     }
-    $result = json_decode($result);
-    $result['next'] = $next;
+    $results = (object) json_decode($result);
+    $results->next = $next;
   }
-  return $result;
+  else {
+    $results = json_decode($result);
+  }
+
+  return $results;
 }
 
 /**
@@ -1232,6 +1191,27 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
 */
 function bitbucket_commits_get_repository_information($repo, $username, $password) {
   $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo;
+  $result = _bitbucket_commits_api_call($url, $username, $password);
+  return $result;
+}
+
+/**
+ * Get GitHub repository information for a specific repo (API Call)
+ *
+ * @param string $repo
+ * The repository we are getting information on
+ *
+ * @param string $username
+ * The username for our authentication
+ *
+ * @param string $password
+ * The password for the username provided.
+ *
+ * @return string $results
+ * The JSON decoded array from BitBucket to be parsed.
+*/
+function bitbucket_commits_github_get_repository_information($repo, $username, $password) {
+  $url = 'https://api.github.com/repos/' . $repo;
   $result = _bitbucket_commits_api_call($url, $username, $password);
   return $result;
 }
