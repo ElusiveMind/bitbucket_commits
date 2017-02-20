@@ -1429,3 +1429,10 @@ function bitbucket_commits_clear() {
 	drupal_set_message('All BitBucket statistics cleared.', 'status');
 	drupal_goto('admin/config/development/bitbucket/display');
 }
+
+function bitbucket_commits_mix_colors($color1, $color2) {
+  $c1 = hexdec($color1);
+  $c2 = hexdec($color2);
+  $add = ($c1 + c2) / 2;
+  return dechex($add);
+}
