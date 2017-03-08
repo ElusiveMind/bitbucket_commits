@@ -481,11 +481,10 @@ function _bitbucket_commits_retrieve() {
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
       $result = _bitbucket_commits_api_call($url, $username, $password);
-
       if ($result == FALSE) {
         drupal_set_message('Bitbucket API rate limit exceeded. Repository: ' . $repo, 'error');
         db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
-        break 2;
+        drupal_goto('admin/config/development/bitbucket/display');
       }
       $json = json_decode($result);
       if (empty($json->values)) {
@@ -677,12 +676,17 @@ function _bitbucket_commits_github_retrieve() {
     $url = 'https://api.github.com/repos/' . $repo . '/commits?author=' . $username;
     do {
       $json = _bitbucket_commits_api_call($url, $username, $password);
+      if ($json == FALSE) {
+        drupal_set_message('GitHub API rate limit exceeded. Repository: ' . $repo, 'error');
+        db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
+        drupal_goto('admin/config/development/bitbucket/display');
+      }
       if (!empty($json->next)) {
         $next = $json->next;
         unset($json->next);
       }
-      if ($json == FALSE) {
-        drupal_set_message('Bitbucket API rate limit exceeded. Repository: ' . $repo, 'error');
+      if (!empty($json->message) && substr($json->message,0,14) == 'API rate limit') {
+        drupal_set_message('GitHub API rate limit exceeded. Repository: ' . $repo, 'error');
         db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
         break 2;
       }
@@ -729,9 +733,10 @@ function _bitbucket_commits_github_retrieve() {
             break 2;
           }
 
-          $files_changed = $lines_added = $lines_removed = 0;
           // We need to do this as opposed to in_array thanks to extra spaces that may
           // appear at the end of items in the textarea boxes.
+          /*
+          $files_changed = $lines_added = $lines_removed = 0;
           $lines = FALSE;
           foreach ($repos_line as $rline) {
             if (trim($rline) == $repo) {
@@ -741,20 +746,20 @@ function _bitbucket_commits_github_retrieve() {
           }
           if ($lines == TRUE && !empty($commit->url)) {
             $decoded = _bitbucket_commits_api_call($commit->url, $username, $password, FALSE);
-
             $files_changed = count($decoded->files);
             $lines_added = $decoded->stats->additions;
             $lines_removed = $decoded->stats->deletions;
           }
+          */
 
           $centry = array(
             'cid' => $cid,
             'commit_message' => addslashes($message),
             'commit_date' => $commit->date,
             'project' => $project,
-            'files_changed' => $files_changed,
-            'lines_added' => $lines_added,
-            'lines_removed' => $lines_removed,
+            'files_changed' => 0,
+            'lines_added' => 0,
+            'lines_removed' => 0,
             'repository' => 'github',
           );
 
@@ -790,7 +795,7 @@ function _bitbucket_commits_github_retrieve() {
   }
   // Save the information on our repositories to the database.
   if (count($repositories) > 0) {
-    foreach($repositories as $repository) {
+    foreach  ($repositories as $repository) {
       $is_private = ($repository->private == 1) ? 1 : 0;
       db_merge('commits_projects')
         ->key(array('full_name' => $repository->full_name))
@@ -835,7 +840,7 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
   curl_setopt($ch, CURLOPT_COOKIEFILE, 'cookiefile.txt');
   curl_setopt($ch, CURLOPT_HTTPHEADER,
     array(
-      "User-Agent: BitBucket Commits Drupal Module",
+      "User-Agent: Commits Drupal Module",
       "Authorization: Basic " . base64_encode($username . ":" . $password)
     )
   );
@@ -850,8 +855,15 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
   $result = substr($response, $header_size);
   curl_close($ch);
 
+  // Check for Bitbucket API rate limit.
   if ($result == 'Rate limit for this resource has been exceeded') {
-    return array(FALSE);
+    return FALSE;
+  }
+
+  // Check for GitHub API rate limit.
+  $json = json_decode($result);
+  if (!empty($json->message) && substr($json->message,0,14) == 'API rate limit') {
+    return FALSE;
   }
 
   if ($decode == TRUE) {
@@ -860,16 +872,16 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
     foreach($headers as $line) {
       $params = explode(': ', $line);
       if ($params[0] == "Link" && !empty($params[1])) {
-        for($i=0; $i<strlen($value); $i++) {
-          if (substr($value, $i, 1) == "<") {
+        for($i=0; $i<strlen($line); $i++) {
+          if (substr($line, $i, 1) == "<") {
             $start = $i + 1;
           }
-          if (substr($value, $i, 1) == ">") {
+          if (substr($line, $i, 1) == ">") {
             $end = $i - 1;
             break;
           }
         }
-        $next = substr($value, $start, $end);
+        $next = substr($line, $start, $end);
       }
     }
     $results = (object) json_decode($result);
