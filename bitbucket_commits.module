@@ -449,7 +449,7 @@ function bitbucket_commits_sync() {
 function bitbucket_commits_cron() {
   set_time_limit(0);
   _bitbucket_commits_github_retrieve();
-  //_bitbucket_commits_retrieve();
+  _bitbucket_commits_retrieve();
 }
 
 /**
@@ -480,13 +480,12 @@ function _bitbucket_commits_retrieve() {
     $repo = trim($repo);
     $url = 'https://api.bitbucket.org/2.0/repositories/' . $repo . '/commits?pagelen=100';
     do {
-      $result = _bitbucket_commits_api_call($url, $username, $password);
-      if ($result == FALSE) {
+      $json = _bitbucket_commits_api_call($url, $username, $password);
+      if ($json == FALSE) {
         drupal_set_message('Bitbucket API rate limit exceeded. Repository: ' . $repo, 'error');
         db_query('DELETE FROM {commits} WHERE project = :project', array(':project' => $repo));
         drupal_goto('admin/config/development/bitbucket/display');
       }
-      $json = json_decode($result);
       if (empty($json->values)) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
@@ -629,20 +628,25 @@ function _bitbucket_commits_retrieve() {
   }
   // Save the information on our repositories to the database.
   if (count($repositories) > 0) {
-    foreach($repositories as $repository) {
-      $is_private = ($repository->is_private == 1) ? 1 : 0;
-      db_merge('commits_projects')
-        ->key(array('full_name' => $repository->full_name))
-        ->fields(array(
-          'full_name' => $repository->full_name,
-          'name' => $repository->name,
-          'is_private' => $is_private,
-          'website' => $repository->website,
-          'language' => $repository->language,
-          'description' => $repository->description,
-          'repository' => 'bitbucket'
-          ))
-        ->execute();
+    foreach  ($repositories as $repository) {
+      try {
+        $is_private = ($repository->is_private == 1) ? 1 : 0;
+        db_merge('commits_projects')
+          ->key(array('full_name' => $repository->full_name))
+          ->fields(array(
+            'full_name' => $repository->full_name,
+            'name' => $repository->name,
+            'is_private' => $is_private,
+            'website' => $repository->website,
+            'language' => $repository->language,
+            'description' => $repository->description,
+            'repository' => 'bitbucket'
+            ))
+          ->execute();
+      }
+      catch (Exception $e) {
+        watchdog('bitbucket_commits', $e->getMessage(), array(), WATCHDOG_WARNING);
+      }
     }
   }
 }
@@ -669,6 +673,7 @@ function _bitbucket_commits_github_retrieve() {
   $repos = explode("\n", $repos);
   $repositories = array();
   foreach($repos as $repo) {
+    $xx = 0;
     if (empty($repo)) {
       continue;
     }
@@ -733,25 +738,6 @@ function _bitbucket_commits_github_retrieve() {
             break 2;
           }
 
-          // We need to do this as opposed to in_array thanks to extra spaces that may
-          // appear at the end of items in the textarea boxes.
-          /*
-          $files_changed = $lines_added = $lines_removed = 0;
-          $lines = FALSE;
-          foreach ($repos_line as $rline) {
-            if (trim($rline) == $repo) {
-              $lines = TRUE;
-              break;
-            }
-          }
-          if ($lines == TRUE && !empty($commit->url)) {
-            $decoded = _bitbucket_commits_api_call($commit->url, $username, $password, FALSE);
-            $files_changed = count($decoded->files);
-            $lines_added = $decoded->stats->additions;
-            $lines_removed = $decoded->stats->deletions;
-          }
-          */
-
           $centry = array(
             'cid' => $cid,
             'commit_message' => addslashes($message),
@@ -796,19 +782,24 @@ function _bitbucket_commits_github_retrieve() {
   // Save the information on our repositories to the database.
   if (count($repositories) > 0) {
     foreach  ($repositories as $repository) {
-      $is_private = ($repository->private == 1) ? 1 : 0;
-      db_merge('commits_projects')
-        ->key(array('full_name' => $repository->full_name))
-        ->fields(array(
-          'full_name' => $repository->full_name,
-          'name' => $repository->name,
-          'is_private' => $is_private,
-          'website' => $repository->html_url,
-          'language' => $repository->language,
-          'description' => $repository->description,
-          'repository' => 'github'
-          ))
-        ->execute();
+      try {
+        $is_private = ($repository->private == 1) ? 1 : 0;
+        db_merge('commits_projects')
+          ->key(array('full_name' => $repository->full_name))
+          ->fields(array(
+            'full_name' => $repository->full_name,
+            'name' => $repository->name,
+            'is_private' => $is_private,
+            'website' => $repository->html_url,
+            'language' => $repository->language,
+            'description' => $repository->description,
+            'repository' => 'github'
+            ))
+          ->execute();
+      }
+      catch (Exception $e) {
+        watchdog('bitbucket_commits', $e->getMessage(), array(), WATCHDOG_WARNING);
+      }
     }
   }
 }
@@ -828,7 +819,7 @@ function _bitbucket_commits_github_retrieve() {
  * @return string $results
  * The JSON string from BitBucket to be parsed.
  */
-function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE) {
+function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE, $file = FALSE) {
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_URL, $url);
   curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -862,33 +853,40 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE)
 
   // Check for GitHub API rate limit.
   $json = json_decode($result);
-  if (!empty($json->message) && substr($json->message,0,14) == 'API rate limit') {
+  if (!empty($json->message) && substr($json->message, 0, 14) == 'API rate limit') {
     return FALSE;
   }
 
+  // If what we have is a file then we need to return the un-jsonized result.
+  if ($file == TRUE) {
+    return $result;
+  }
+
+  // This code is for getting paginated links from GitHub. Triggered by the function call and if
+  // false then we just take the json decoded results and return them.
   if ($decode == TRUE) {
     $next = NULL;
     $headers = explode("\n", $header);
     foreach($headers as $line) {
       $params = explode(': ', $line);
       if ($params[0] == "Link" && !empty($params[1])) {
-        for($i=0; $i<strlen($line); $i++) {
-          if (substr($line, $i, 1) == "<") {
+        for($i=0; $i<strlen($params[1]); $i++) {
+          if (substr($params[1], $i, 1) == "<") {
             $start = $i + 1;
           }
-          if (substr($line, $i, 1) == ">") {
+          if (substr($params[1], $i, 1) == ">") {
             $end = $i - 1;
             break;
           }
         }
-        $next = substr($line, $start, $end);
+        $next = substr($params[1], $start, $end);
       }
     }
     $results = (object) json_decode($result);
     $results->next = $next;
   }
   else {
-    $results = json_decode($result);
+    $results = (object) json_decode($result);
   }
 
   return $results;
@@ -948,21 +946,24 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
   $start_date = date('Y-m-d', strtotime('previous Sunday', strtotime($start_date)));
   $start_date_time = strtotime($start_date);
   $graph = array();
-  for($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
+  for ($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
     $current_date = date('Y-m-d', $i);
     $graph[$current_date] = array(
-      'commits' => 0,
+      'commits' => array(
+        'bitbucket' => 0,
+        'github' => 0,
+      ),
       'date' => date('m/d/Y', $i),
     );
   }
 
-	$result = db_query("SELECT SUBSTR(commit_date, 1, 10) AS commit_date, count(cid) AS commits 
-	                    FROM commits
+	$result = db_query("SELECT SUBSTR(commit_date, 1, 10) AS commit_date, count(cid) AS commits, repository
+	                    FROM {commits}
 	                    WHERE commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)
-	                    GROUP BY substr(commit_date, 1, 10)
-	                    ORDER BY commit_date ASC");     
-  while($ddata = $result->fetchObject()) {
-    $graph[$ddata->commit_date]['commits'] = $ddata->commits;
+	                    GROUP BY substr(commit_date, 1, 10), repository
+	                    ORDER BY commit_date ASC, repository ASC");   
+  while ($ddata = $result->fetchObject()) {
+    $graph[$ddata->commit_date]['commits'][$ddata->repository] = $ddata->commits;
   }
 
   // Sort the graph by date, which is in the key.
@@ -972,7 +973,38 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
   $rects = $weeks = $year_graph = $current_month = NULL;
   $month_header = array();
 
-  foreach($graph as $date => $data) {
+  // Matrix of our standard colors.
+  $color['grey'] = array('#EAEAEA', '#C0C0C0', '#A0A0A0', '#606060', '#202020');
+  $color['red'] = array('#EAEAEA', '#FFC0C0', '#FF9090', '#FF6060', '#FF2020');
+  $color['green'] = array('#EAEAEA', '#C0D0C0', '#A0D0A0', '#60D060', '#20D020');
+  $color['blue'] = array('#EAEAEA', '#C0C0FF', '#A0A0FF', '#6060FF', '#2020FF');
+  $color['yellow'] = array('#EAEAEA', '#DDDD20', '#CCCC20', '#BBBB20', '#AAAA20');
+  $color['orange'] = array('#EAEAEA', '#fce2b4', '#fbd38e', '#fcc35f', '#feae22');
+  $color['brown'] = array('#EAEAEA', '#d2bc97', '#be9d63', '#a58246', '#9d6400');
+  $color['purple'] = array('#EAEAEA', '#fcd5f7', '#fca8f1', '#fd68ea', '#fd2de2');
+  $color['pink'] = array('#EAEAEA', '#ffd7eb', '#febcdd', '#fc8ec5', '#FF69B4');
+  $color['github'] = array('#EAEAEA', '#cde372', '#7bbd52', '#389631', '#1a571b');
+
+  // If the custom color is provided in our UI, then assign the colors to our color
+  // scheme for processing.
+  $color['bitbucket_custom'] = array(
+    variable_get('bitbucket_activity_custom_color1', NULL),
+    variable_get('bitbucket_activity_custom_color2', NULL),
+    variable_get('bitbucket_activity_custom_color3', NULL),
+    variable_get('bitbucket_activity_custom_color4', NULL),
+    variable_get('bitbucket_activity_custom_color5', NULL),
+  );
+  $color['github_custom'] = array(
+    variable_get('bitbucket_github_activity_custom_color1', NULL),
+    variable_get('bitbucket_github_activity_custom_color2', NULL),
+    variable_get('bitbucket_github_activity_custom_color3', NULL),
+    variable_get('bitbucket_github_activity_custom_color4', NULL),
+    variable_get('bitbucket_github_activity_custom_color5', NULL),
+  );
+
+  $cdate = array();
+  $ccolor = array();
+  foreach ($graph as $date => $data) {
     if (date('l', strtotime($date)) == 'Sunday') {
       if ($position > 0) {
         $weeks .= theme('bitbucket_commits_svg_week',  array('x' => (13 * ($position - 1)), 'y' => 0, 'rects' => $rects));
@@ -990,60 +1022,59 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
       $position++;
     }
 
-    $color_scheme = variable_get('bitbucket_activity_color_scheme', 'green');
-    $color['grey'] = array('#EAEAEA', '#C0C0C0', '#A0A0A0', '#606060', '#202020');
-    $color['red'] = array('#EAEAEA', '#FFC0C0', '#FF9090', '#FF6060', '#FF2020');
-    $color['green'] = array('#EAEAEA', '#C0D0C0', '#A0D0A0', '#60D060', '#20D020');
-    $color['blue'] = array('#EAEAEA', '#C0C0FF', '#A0A0FF', '#6060FF', '#2020FF');
-    $color['yellow'] = array('#EAEAEA', '#DDDD20', '#CCCC20', '#BBBB20', '#AAAA20');
-    $color['orange'] = array('#EAEAEA', '#fce2b4', '#fbd38e', '#fcc35f', '#feae22');
-    $color['brown'] = array('#EAEAEA', '#d2bc97', '#be9d63', '#a58246', '#9d6400');
-    $color['purple'] = array('#EAEAEA', '#fcd5f7', '#fca8f1', '#fd68ea', '#fd2de2');
-    $color['pink'] = array('#EAEAEA', '#ffd7eb', '#febcdd', '#fc8ec5', '#FF69B4');
-    $color['github'] = array('#EAEAEA', '#cde372', '#7bbd52', '#389631', '#1a571b');
+    $bitbucket_color = variable_get('bitbucket_activity_color_scheme', 'green');
+    $github_color = variable_get('bitbucket_github_activity_color_scheme', 'green');
 
-    // If the custom color is provided in our UI, then assign the colors to our color
-    // scheme for processing.
-    if ($color_scheme == 'custom') {
-      $color['custom'] = array(
-        variable_get('bitbucket_activity_custom_color1', NULL),
-        variable_get('bitbucket_activity_custom_color2', NULL),
-        variable_get('bitbucket_activity_custom_color3', NULL),
-        variable_get('bitbucket_activity_custom_color4', NULL),
-        variable_get('bitbucket_activity_custom_color5', NULL),
-      );
-    }
+    $total_commits = 0;
+    foreach (array('bitbucket', 'github') as $repository) {
+      $color_scheme = ($repository == 'bitbucket') ? $bitbucket_color : $github_color;
+      if ($color_scheme == 'custom') {
+        if ($repository == 'bitbucket') {
+          $color_scheme = 'bitbucket_custom';
+        }
+        else {
+          $color_scheme = 'github_custom';
+        }
+      }
 
-    // If we are being passed a custom color scheme via the theme function, then we have
-    // to assign our colors as follows.
-    if (!empty($theme_color_scheme)) {
-      $color_scheme = 'theme';
-      $color['theme'] = array($color1, $color2, $color3, $color4, $color5);
-    }
+      $total_commits += $data['commits'][$repository];
 
-    if ($data['commits'] == 0) {
-      $fill_color = $color[$color_scheme][0];
-      $tooltip = 'No Commits on ' . date('m/d/Y', strtotime($date));
-    }
-    elseif ($data['commits'] < 4) {
-      $fill_color = $color[$color_scheme][1];
-      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
-    }
-    elseif ($data['commits'] < 7) {
-      $fill_color = $color[$color_scheme][2];
-      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
-    }
-    elseif ($data['commits'] < 10) {
-      $fill_color = $color[$color_scheme][3];
-      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
-    }
-    else {
-      $fill_color = $color[$color_scheme][4];
-      $tooltip = $data['commits'] . ' Commits on ' . date('m/d/Y', strtotime($date));
-    }
+      // If we are being passed a custom color scheme via the theme function, then we have
+      // to assign our colors as follows.
+      if (!empty($theme_color_scheme)) {
+        $color_scheme = 'theme';
+        $color['theme'] = array($color1, $color2, $color3, $color4, $color5);
+      }
 
-    $y = 13 * date('w', strtotime($date));
+      if ($data['commits'][$repository] == 0) {
+        $fill_color = $color[$color_scheme][0];
+      }
+      elseif ($data['commits'][$repository] < 4) {
+        $fill_color = $color[$color_scheme][1];
+      }
+      elseif ($data['commits'][$repository] < 7) {
+        $fill_color = $color[$color_scheme][2];
+      }
+      elseif ($data['commits'][$repository] < 10) {
+        $fill_color = $color[$color_scheme][3];
+      }
+      else {
+        $fill_color = $color[$color_scheme][4];
+      }
 
+      $tooltip = NULL;
+      $y = 13 * date('w', strtotime($date));
+
+      if (!empty($ccolor[$date])) {
+        $fill_color = bitbucket_commits_mix_colors($ccolor[$date], $fill_color, $base_color_zero, $color[$color_scheme][0]);
+      }
+      else {
+        $base_color_zero = $color[$color_scheme][0];
+      }
+
+      $ccolor[$date] = $fill_color;
+    }
+    $tooltip = $total_commits . ' Commits on ' . date('m/d/Y', strtotime($date));
     $rects .= theme('bitbucket_commits_svg_rect', array(
       'class' => 'day', 'width' => 11, 'height' => 11, 'y' => $y, 
       'fill_color' => $fill_color, 'tooltip' => $tooltip));
@@ -1433,18 +1464,60 @@ function bitbucket_commits_total_commits() {
 }
 
 /**
- * Clear out all BitBucket statistics
+ * Clear out all Bitbucket & GitHub statistics
  */
 function bitbucket_commits_clear() {
 	db_query('TRUNCATE TABLE {commits}');
 	db_query('TRUNCATE TABLE {commits_digest}');
-	drupal_set_message('All BitBucket statistics cleared.', 'status');
+	drupal_set_message('All Bitbucket & GitHub statistics cleared.', 'status');
 	drupal_goto('admin/config/development/bitbucket/display');
 }
 
-function bitbucket_commits_mix_colors($color1, $color2) {
-  $c1 = hexdec($color1);
-  $c2 = hexdec($color2);
-  $add = ($c1 + c2) / 2;
-  return dechex($add);
+/**
+ * If we have commits for Bitbucket and Github on the same day, create a gradiant based
+ * on which one has more commits.
+ *
+ * @param string $color1
+ * The first color to mix.
+ *
+ * @param string $color2
+ * The second color to mix.
+ *
+ * @param string $base1
+ * The base color (zero commit color) for the first mix color scheme.
+ *
+ * @param string $color1
+ * The base color (zero commit color) for the second mix color scheme.
+ *
+ * @return string $color
+ * The resulting color mix.
+ */
+function bitbucket_commits_mix_colors($color1, $color2, $base1, $base2) {
+  // If one of our colors is the same as the base color, then just return the other color.
+  // Prevents mixing with the zero-commit color.
+  if ($color1 == $base1) {
+    return $color2;
+  }
+  if ($color2 == $base2) {
+    return $color1;
+  }
+
+  $color1 = array(
+    substr($color1, 1, 2),
+    substr($color1, 3, 2),
+    substr($color1, 5, 2),
+  );
+  $color2 = array(
+    substr($color2, 1, 2),
+    substr($color2, 3, 2),
+    substr($color2, 5, 2),
+  );
+
+  for ($i=0; $i<=2; $i++) {
+    $c1 = hexdec($color1[$i]);
+    $c2 = hexdec($color2[$i]);
+    $add = ($c1 + $c2) / 2;
+    $color3[$i] = dechex($add);
+  }
+  return '#' . join('', $color3);
 }
