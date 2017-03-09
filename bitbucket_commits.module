@@ -553,7 +553,7 @@ function _bitbucket_commits_retrieve() {
           }
           if ($lines == TRUE && !empty($commit->links->patch->href)) {
             $patch = $commit->links->patch->href;
-            $file = _bitbucket_commits_api_call($patch, $username, $password);
+            $file = _bitbucket_commits_api_call($patch, $username, $password, FALSE, TRUE);
             $lines = explode("\n", $file);
 
             $parse_line = 0;
