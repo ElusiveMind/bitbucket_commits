@@ -39,19 +39,26 @@ function bitbucket_commits_menu() {
     'access arguments' => array('access bitbucket settings'),
     'weight' => 2,
   );
-  $items['admin/config/development/bitbucket/sync'] = array(
-    'title' => 'Sync',
-    'page callback' => 'bitbucket_commits_sync',
+  $items['admin/config/development/bitbucket/sync-bitbucket'] = array(
+    'title' => 'Bitbucket Sync',
+    'page callback' => 'bitbucket_commits_bitbucket_sync',
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
     'weight' => 3,
+  );
+  $items['admin/config/development/bitbucket/sync-github'] = array(
+    'title' => 'GitHub Sync',
+    'page callback' => 'bitbucket_commits_github_sync',
+    'access callback' => 'user_access',
+    'access arguments' => array('access bitbucket settings'),
+    'weight' => 4,
   );
   $items['admin/config/development/bitbucket/clear'] = array(
     'title' => 'Clear',
     'page callback' => 'bitbucket_commits_clear',
     'access callback' => 'user_access',
     'access arguments' => array('access bitbucket settings'),
-    'weight' => 4,
+    'weight' => 5,
   );
   return $items;
 }
@@ -396,7 +403,7 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
     $color2 = $form_state['values']['bitbucket_activity_custom_color2'];
     $color3 = $form_state['values']['bitbucket_activity_custom_color3'];
     $color4 = $form_state['values']['bitbucket_activity_custom_color4'];
-    $color4 = $form_state['values']['bitbucket_activity_custom_color5'];
+    $color5 = $form_state['values']['bitbucket_activity_custom_color5'];
     for($i = 1; $i <= 4; $i++) {
       $var = "color" . $i;
       if (empty($$var)) {
@@ -440,19 +447,42 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
 }
 
 /**
- * Run our cron manually and return to admin section.
+ * Synchronize our Bitbucket repository configuration with the site.
  */
-function bitbucket_commits_sync() {
-  bitbucket_commits_cron();
-  drupal_set_message('Synchronization completed.', 'status');
-  drupal_goto('admin/config/development/bitbucket/display');
-}
-/**
- * Implements hook_cron().
- */
-function bitbucket_commits_cron() {
+function bitbucket_commits_bitbucket_sync() {
   set_time_limit(0);
   _bitbucket_commits_retrieve();
+  drupal_set_message('Bitbucket Synchronization completed.', 'status');
+  drupal_goto('admin/config/development/bitbucket/display');
+}
+
+/**
+ * Synchronize our GitHub repository configuration with the site. 
+ */
+function bitbucket_commits_github_sync() {
+  set_time_limit(0);
+  _bitbucket_commits_github_retrieve();
+  drupal_set_message('GitHub Synchronization completed.', 'status');
+  drupal_goto('admin/config/development/bitbucket/display');
+}
+
+/**
+ * Crons need to be implemented via Elysia Cron. Or at least this is the current working theory
+ * as to why crons do not run properly. This is the function to tun the bitbucket import job as
+ * a cron with Elysia Cron.
+ */
+function bitbucket_commits_bitbucket_cron() {
+  set_time_limit(0);
+  _bitbucket_commits_retrieve();
+}
+
+/**
+ * Crons need to be implemented via Elysia Cron. Or at least this is the current working theory
+ * as to why crons do not run properly. This is the function to tun the github import job as
+ * a cron with Elysia Cron.
+ */
+function bitbucket_commits_github_cron() {
+  set_time_limit(0);
   _bitbucket_commits_github_retrieve();
 }
 
