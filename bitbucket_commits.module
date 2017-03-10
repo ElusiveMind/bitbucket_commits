@@ -396,6 +396,7 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
     $color2 = $form_state['values']['bitbucket_activity_custom_color2'];
     $color3 = $form_state['values']['bitbucket_activity_custom_color3'];
     $color4 = $form_state['values']['bitbucket_activity_custom_color4'];
+    $color4 = $form_state['values']['bitbucket_activity_custom_color5'];
     for($i = 1; $i <= 4; $i++) {
       $var = "color" . $i;
       if (empty($$var)) {
@@ -411,6 +412,7 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
     $color2 = $form_state['values']['bitbucket_github_activity_custom_color2'];
     $color3 = $form_state['values']['bitbucket_github_activity_custom_color3'];
     $color4 = $form_state['values']['bitbucket_github_activity_custom_color4'];
+    $color5 = $form_state['values']['bitbucket_github_activity_custom_color5'];
     for($i = 1; $i <= 4; $i++) {
       $var = "color" . $i;
       if (empty($$var)) {
@@ -424,12 +426,14 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
   variable_set('bitbucket_activity_custom_color2', $form_state['values']['bitbucket_activity_custom_color2']);
   variable_set('bitbucket_activity_custom_color3', $form_state['values']['bitbucket_activity_custom_color3']);
   variable_set('bitbucket_activity_custom_color4', $form_state['values']['bitbucket_activity_custom_color4']);
+  variable_set('bitbucket_activity_custom_color5', $form_state['values']['bitbucket_activity_custom_color5']);
 
   variable_set('bitbucket_github_activity_color_scheme', $form_state['values']['bitbucket_github_activity_color_scheme']);
   variable_set('bitbucket_github_activity_custom_color1', $form_state['values']['bitbucket_github_activity_custom_color1']);
   variable_set('bitbucket_github_activity_custom_color2', $form_state['values']['bitbucket_github_activity_custom_color2']);
   variable_set('bitbucket_github_activity_custom_color3', $form_state['values']['bitbucket_github_activity_custom_color3']);
   variable_set('bitbucket_github_activity_custom_color4', $form_state['values']['bitbucket_github_activity_custom_color4']);
+  variable_set('bitbucket_github_activity_custom_color5', $form_state['values']['bitbucket_github_activity_custom_color5']);
 
   drupal_set_message('Bitbucket/GitHub display settings successfully updated.', 'status');
   drupal_goto('admin/config/development/bitbucket/display');    
