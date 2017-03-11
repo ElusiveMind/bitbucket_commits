@@ -32,7 +32,11 @@
     <div class="line"></div>
     <?php foreach($commits as $commit): ?>
       <?php if ($commit['is_private'] != TRUE): ?>
-        <?php $commit['project'] = '<a class="bitbucket-link" href="https://bitbucket.org/' . $commit['project'] . '">' . $commit['project'] . '</a>'; ?>
+        <?php if ($commit['repository'] == 'bitbucket'): ?>
+          <?php $commit['project'] = '<a class="bitbucket-link" href="https://bitbucket.org/' . $commit['project'] . '">' . $commit['project'] . '</a>'; ?>
+        <?php else: ?>
+          <?php $commit['project'] = '<a class="bitbucket-link" href="https://github.org/' . $commit['project'] . '">' . $commit['project'] . '</a>'; ?>
+        <?php endif; ?>
       <?php endif; ?>
       <?php $website = NULL; ?>
       <?php if (!empty($commit['website'])) { $website = " (" . $commit['website'] . ")"; } ?>

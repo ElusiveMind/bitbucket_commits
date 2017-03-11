@@ -189,12 +189,6 @@ function bitbucket_commits_github_api_settings_form($form, &$form_state) {
     '#type' => 'textarea',
     '#default_value' => variable_get('bitbucket_github_do_not_display', NULL),
   );
-  $form['bitbucket_github_raw_names'] = array(
-    '#title' => 'Other Possible Commit Names',
-    '#description' => t('Other names a commit may be logged under aside from your username. Used to assign commits to your statistics. One per line. This can also be a partial name. Will be matched by substring.'),
-    '#type' => 'textarea',
-    '#default_value' => variable_get('bitbucket_github_raw_names', NULL),
-  );
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => 'Submit',
@@ -210,7 +204,6 @@ function bitbucket_commits_github_api_settings_form_submit($form, &$form_state) 
   variable_set('bitbucket_github_repositories', $form_state['values']['bitbucket_github_repositories']);
   variable_set('bitbucket_github_repositories_line_numbers', $form_state['values']['bitbucket_github_repositories_line_numbers']);
   variable_set('bitbucket_github_username', $form_state['values']['bitbucket_github_username']);
-  variable_set('bitbucket_github_raw_names', $form_state['values']['bitbucket_github_raw_names']);
   variable_set('bitbucket_github_do_not_display', $form_state['values']['bitbucket_github_do_not_display']);
   drupal_set_message('GitHub API settings successfully updated.', 'status');
   drupal_goto('admin/config/development/bitbucket/github-api');
@@ -697,8 +690,6 @@ function _bitbucket_commits_github_retrieve() {
   $repos_line = variable_get('bitbucket_github_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_github_username', NULL);
   $password = variable_get('bitbucket_github_personal_access_token', NULL);
-  $raw_usernames = variable_get('bitbucket_github_raw_names', NULL);
-  $raw_usernames = explode("\n", $raw_usernames);
 
   if (!empty($repos_line)) {
     $repos_line = explode("\n", $repos_line);
@@ -1223,7 +1214,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
   $do_not_display = str_replace("\r", "", $do_not_display); // Windows :(
   $do_not_display = (!empty($do_not_display)) ? explode("\n", $do_not_display) : array();
 
-  $result = db_query("SELECT COUNT(*) as commit_count, project
+  $result = db_query("SELECT COUNT(*) as commit_count, project, repository
                       FROM {commits}
                       WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY)
                       GROUP by project ORDER BY commit_count DESC");
@@ -1249,6 +1240,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
         'website' => $pdata->website,
         'language' => $pdata->language,
         'is_private' => $pdata->is_private,
+        'repository' => $pdata->repository,
       );
     }
   }

@@ -139,7 +139,6 @@ function bitbucket_commits_uninstall() {
   variable_del('bitbucket_github_personal_access_token');
   variable_del('bitbucket_github_repositories');
   variable_del('bitbucket_github_repositories_line_numbers');
-  variable_del('bitbucket_github_raw_names');
   variable_del('bitbucket_github_do_not_display');
   variable_del('bitbucket_github_activity_color_scheme');
   variable_del('bitbucket_github_activity_custom_color1');
@@ -151,6 +150,15 @@ function bitbucket_commits_uninstall() {
   variable_del('bitbucket_commits_display_line_stats');
   variable_del('bitbucket_commits_recent_commits_repo_days');
   variable_del('bitbucket_commits_recent_commits_repo_days_private');
+}
+
+/**
+ * Implements hook_install().
+ */
+function bitbucket_commits_install() {
+  // Turn on the block display of recent commits in repo list for the last 14 days. Configurable
+  // via the block admin page but this is the default setting.
+  variable_set('bitbucket_commits_recent_commits_repo_days', 14);
 }
 
 /**
