@@ -39,7 +39,7 @@
         <?php endif; ?>
       <?php endif; ?>
       <?php $website = NULL; ?>
-      <?php if (!empty($commit['website'])) { $website = " (" . $commit['website'] . ")"; } ?>
+      <?php if (!empty($commit['website'])) { $website = ' (<a class="bitbucket-link href="' . $commit['website'] . ' target="_new">' . $commit['website'] . '</a>)'; } ?>
       <p class="commit-line">Published <?php echo $commit['commits'];?> commits to <?php echo $commit['project'];?>. <?php echo $website;?></p>
     <?php endforeach;?>
   </div>

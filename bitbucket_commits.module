@@ -1304,7 +1304,7 @@ function bitbucket_commits_help($path, $arg) {
       $output .= t('The main target for this module are developers who wish to report their activity on a web site such as a personal web site or blog. At some point, it may become possible to include the graph via a javascript "bug" on a target web site, but that functionality is planned down the road.') . '<br /><br />';
       $output .= '<div style="border-top: 2px solid #f8981d; margin: 15px 0px; padding-top: 15px; width: 100%; font-size: 8pt; line-height: 1.3em;">';
       $output .= '<img src="/' . drupal_get_path('module', 'bitbucket_commits') . '/images/flyingflip-logo.png" width="151" height="50" alt="FlyingFlip Studios" align="right" /><br />';
-      $output .= 'Released 2016 - v7.x-1.x - FlyingFlip Studios, LLC. - Released under GNU GENERAL PUBLIC LICENSE - Version 2, June 1991<br />http://www.michaelbagnall.com - @flyingflip - @mbagnall17<br clear="right">';
+      $output .= 'Released 2016-2017 - v7.x-1.x - FlyingFlip Studios, LLC. - Released under GNU GENERAL PUBLIC LICENSE - Version 2, June 1991<br />http://www.michaelbagnall.com - @flyingflip - @mbagnall17<br clear="right">';
       $output .= '<style>.item-list, hr { display: none; }</style></div>';      
       break;
   }
