@@ -1066,8 +1066,10 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
         }
       }
 
-      $total_commits += $data['commits'][$repository];
-
+      if (!empty($data['commits'][$repository])) {
+        $total_commits += $data['commits'][$repository];
+      }
+      
       // If we are being passed a custom color scheme via the theme function, then we have
       // to assign our colors as follows.
       if (!empty($theme_color_scheme)) {
@@ -1075,22 +1077,26 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
         $color['theme'] = array($color1, $color2, $color3, $color4, $color5);
       }
 
-      if ($data['commits'][$repository] == 0) {
-        $fill_color = $color[$color_scheme][0];
-      }
-      elseif ($data['commits'][$repository] < 4) {
-        $fill_color = $color[$color_scheme][1];
-      }
-      elseif ($data['commits'][$repository] < 7) {
-        $fill_color = $color[$color_scheme][2];
-      }
-      elseif ($data['commits'][$repository] < 10) {
-        $fill_color = $color[$color_scheme][3];
+      if (!empty($data['commits'][$repository])) {
+        if ($data['commits'][$repository] == 0) {
+          $fill_color = $color[$color_scheme][0];
+        }
+        elseif ($data['commits'][$repository] < 4) {
+          $fill_color = $color[$color_scheme][1];
+        }
+        elseif ($data['commits'][$repository] < 7) {
+          $fill_color = $color[$color_scheme][2];
+        }
+        elseif ($data['commits'][$repository] < 10) {
+          $fill_color = $color[$color_scheme][3];
+        }
+        else {
+          $fill_color = $color[$color_scheme][4];
+        }
       }
       else {
-        $fill_color = $color[$color_scheme][4];
+        $fill_color = $color[$color_scheme][0];
       }
-
       $tooltip = NULL;
       $y = 13 * date('w', strtotime($date));
 
