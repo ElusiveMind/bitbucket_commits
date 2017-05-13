@@ -444,7 +444,7 @@ function bitbucket_commits_display_settings_form_submit($form, &$form_state) {
  */
 function bitbucket_commits_bitbucket_sync() {
   set_time_limit(0);
-  _bitbucket_commits_retrieve();
+  _bitbucket_commits_retrieve(FALSE);
   drupal_set_message('Bitbucket Synchronization completed.', 'status');
   drupal_goto('admin/config/development/bitbucket/display');
 }
@@ -454,7 +454,7 @@ function bitbucket_commits_bitbucket_sync() {
  */
 function bitbucket_commits_github_sync() {
   set_time_limit(0);
-  _bitbucket_commits_github_retrieve();
+  _bitbucket_commits_github_retrieve(FALSE);
   drupal_set_message('GitHub Synchronization completed.', 'status');
   drupal_goto('admin/config/development/bitbucket/display');
 }
@@ -466,7 +466,7 @@ function bitbucket_commits_github_sync() {
  */
 function bitbucket_commits_bitbucket_cron() {
   set_time_limit(0);
-  _bitbucket_commits_retrieve();
+  _bitbucket_commits_retrieve(FALSE);
 }
 
 /**
@@ -476,13 +476,13 @@ function bitbucket_commits_bitbucket_cron() {
  */
 function bitbucket_commits_github_cron() {
   set_time_limit(0);
-  _bitbucket_commits_github_retrieve();
+  _bitbucket_commits_github_retrieve(FALSE);
 }
 
 /**
  * Retrieve all of the commits configured from bitbucket.
  */
-function _bitbucket_commits_retrieve() {
+function _bitbucket_commits_retrieve($drush = FALSE) {
   $repos = variable_get('bitbucket_repositories', FALSE);
   $repos_line = variable_get('bitbucket_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_username', NULL);
@@ -501,6 +501,11 @@ function _bitbucket_commits_retrieve() {
   $repos = explode("\n", $repos);
   $repositories = array();
   foreach($repos as $repo) {
+    if ($drush == TRUE) {
+      list($org, $repository) = explode('/', $repo);
+      $repository_message = "Bitbucket Commits: " . $org . " - " . $repository;
+      drush_print($repository_message);
+    }
     if (empty($repo)) {
       continue;
     }
@@ -685,7 +690,7 @@ function _bitbucket_commits_retrieve() {
 /**
  * Retrieve all of the commits configured from bitbucket.
  */
-function _bitbucket_commits_github_retrieve() {
+function _bitbucket_commits_github_retrieve($drush = FALSE) {
   $repos = variable_get('bitbucket_github_repositories', FALSE);
   $repos_line = variable_get('bitbucket_github_repositories_line_numbers', FALSE);
   $username = variable_get('bitbucket_github_username', NULL);
@@ -702,6 +707,11 @@ function _bitbucket_commits_github_retrieve() {
   $repos = explode("\n", $repos);
   $repositories = array();
   foreach($repos as $repo) {
+    if ($drush == TRUE) {
+      list($org, $repository) = explode('/', $repo);
+      $repository_message = "Bitbucket Commits: " . $org . " - " . $repository;
+      drush_print($repository_message);
+    }
     $xx = 0;
     if (empty($repo)) {
       continue;
@@ -853,7 +863,7 @@ function _bitbucket_commits_api_call($url, $username, $password, $decode = TRUE,
   curl_setopt($ch, CURLOPT_URL, $url);
   curl_setopt($ch, CURLOPT_TIMEOUT, 30);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($ch, CURLOPT_VERBOSE, 1);
+  curl_setopt($ch, CURLOPT_VERBOSE, 0);
   curl_setopt($ch, CURLOPT_HEADER, 1);
   curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
   curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
@@ -1224,7 +1234,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
                       FROM {commits}
                       WHERE commit_date >= DATE_SUB('" . $date . "', INTERVAL " . $interval . " DAY)
                       GROUP by project ORDER BY commit_count DESC");
-  $commits = array();
+  $commits = [];
   if ($result->rowCount() > 0) {
     while($cdata = $result->fetchObject()) {
       // If we're in the do not display array, then pass it by.
@@ -1236,10 +1246,13 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
       if ($private->rowCount() > 0) {
         $pdata = $private->fetchObject();
       }
+      else {
+        continue;
+      }
       if (empty($is_private) && $pdata->is_private == 1) {
         continue;
       }
-      $commits[] = array(
+      $commits[] = [
         'project' => $pdata->full_name,
         'commits' => $cdata->commit_count,
         'description' => $pdata->description,
@@ -1247,7 +1260,7 @@ function bitbucket_commits_project_commit_interval_count($interval = 14, $date =
         'language' => $pdata->language,
         'is_private' => $pdata->is_private,
         'repository' => $pdata->repository,
-      );
+      ];
     }
   }
   return $commits;
@@ -1333,7 +1346,7 @@ function bitbucket_commits_block_info() {
  * Implements hook_block_view().
  */
 function bitbucket_commits_block_view($delta = '') {
-  $block = array();
+  $block = [];
   switch ($delta) {
     case 'bitbucket':
       $block['subject'] = t('BitBucket Statistics');
@@ -1354,7 +1367,7 @@ function bitbucket_commits_block_view($delta = '') {
  * Implements hook_block_configure().
  */
 function bitbucket_commits_block_configure($delta = '') {
-  $form = array();
+  $form = [];
   if ($delta == 'bitbucket') {
     $form['bitbucket_commits'] = array(
       '#type' => 'fieldset',
@@ -1414,7 +1427,7 @@ function bitbucket_commits_block_html() {
   $current_streak = bitbucket_commits_current_streak();
   $total_commits = bitbucket_commits_total_commits();
 
-  $commits = array();
+  $commits = [];
   $lines_added = $lines_removed = NULL;
   $graph = bitbucket_commit_year_box_graph(date('Y-m-d'));
   if (!empty($repo_days)) {
@@ -1425,9 +1438,9 @@ function bitbucket_commits_block_html() {
     $lines_removed = theme('bitbucket_commits_lines_removed');
   }
   $graph =  theme('bitbucket_commits_block', 
-    array('graph' => $graph, 'commits' => $commits, 'line_stats' => $line_stats, 'lines_added' => $lines_added, 
-          'lines_removed' => $lines_removed, 'max_streak' => $max_streak, 
-          'current_streak' => $current_streak, 'total_commits' => $total_commits));
+    ['graph' => $graph, 'commits' => $commits, 'line_stats' => $line_stats, 'lines_added' => $lines_added, 
+     'lines_removed' => $lines_removed, 'max_streak' => $max_streak, 
+     'current_streak' => $current_streak, 'total_commits' => $total_commits]);
   return $graph;
 }
 
@@ -1538,16 +1551,16 @@ function bitbucket_commits_mix_colors($color1, $color2, $base1, $base2) {
     return $color1;
   }
 
-  $color1 = array(
+  $color1 = [
     substr($color1, 1, 2),
     substr($color1, 3, 2),
     substr($color1, 5, 2),
-  );
-  $color2 = array(
+  ];
+  $color2 = [
     substr($color2, 1, 2),
     substr($color2, 3, 2),
     substr($color2, 5, 2),
-  );
+  ];
 
   for ($i=0; $i<=2; $i++) {
     $c1 = hexdec($color1[$i]);
