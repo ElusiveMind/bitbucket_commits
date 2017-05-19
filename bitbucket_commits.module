@@ -1453,7 +1453,7 @@ function bitbucket_commits_sequential_streak() {
   $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $result = db_select('commits_digest', 'c')
             ->fields('c')
-            ->where("commit_date >= DATE_SUB('" . $end_date . "', INTERVAL 364 DAY)")
+            ->condition('commit_date', $start_date, '>=')
             ->condition('commit_date', $end_date, '<=')
             ->orderBy('commit_date', 'DESC')
             ->execute();       
@@ -1464,16 +1464,34 @@ function bitbucket_commits_sequential_streak() {
       $sequential++;
     }
     else {
-      // Compensate for the day missed when the streak ends.
-      if ($sequential > 0) {
-        $sequential++;
-      }
-      if ($sequential > $max_sequential) {
-        $max_sequential = $sequential;
-      }
+      $max_sequential = bitbucket_commits_check_sequential($sequential, $max_sequential);
       $sequential = 0;
     }
     $yesterday = date('Y-m-d', strtotime('yesterday', strtotime($commit_date)));
+  }
+  $max_sequential = bitbucket_commits_check_sequential($sequential, $max_sequential);
+  return $max_sequential;
+}
+
+/**
+ * Helper function to compare sequential dates and return the higher one.
+ *
+ * @param int sequential
+ * The current number of sequential days calculated.
+ *
+ * @param int max_sequential
+ * The maximum sequential days in the last year.
+ *
+ * @return int max_sequential
+ * The higher value.
+ */
+function bitbucket_commits_check_sequential($sequential, $max_sequential) {
+  // Compensate for the day missed when the streak ends.
+  if ($sequential > 0) {
+    $sequential++;
+  }
+  if ($sequential > $max_sequential) {
+    $max_sequential = $sequential;
   }
   return $max_sequential;
 }
