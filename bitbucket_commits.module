@@ -982,7 +982,7 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
   $end_date_time = strtotime($end_date);
   $start_date = date('Y-m-d', $end_date_time - (86400*364));
-  $start_date = date('Y-m-d', strtotime('previous Sunday', strtotime($start_date)));
+  $start_date = date('Y-m-d', strtotime('next Sunday', strtotime($start_date)));
   $start_date_time = strtotime($start_date);
   $graph = array();
   for ($i = $start_date_time; $i <= $end_date_time; $i += 86400) {
@@ -1449,6 +1449,7 @@ function bitbucket_commits_block_html() {
  */
 function bitbucket_commits_sequential_streak() {
   $end_date = $today = date('Y-m-d');
+  $start_date = date('Y-m-d', strtotime('-1 year'));
   $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $result = db_select('commits_digest', 'c')
             ->fields('c')
@@ -1463,6 +1464,10 @@ function bitbucket_commits_sequential_streak() {
       $sequential++;
     }
     else {
+      // Compensate for the day missed when the streak ends.
+      if ($sequential > 0) {
+        $sequential++;
+      }
       if ($sequential > $max_sequential) {
         $max_sequential = $sequential;
       }
