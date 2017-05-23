@@ -1043,6 +1043,7 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
   $cdate = array();
   $ccolor = array();
+  $current_month = date('M');
   foreach ($graph as $date => $data) {
     if (date('l', strtotime($date)) == 'Sunday') {
       if ($position > 0) {
@@ -1449,11 +1450,9 @@ function bitbucket_commits_block_html() {
  */
 function bitbucket_commits_sequential_streak() {
   $end_date = $today = date('Y-m-d');
-  $start_date = date('Y-m-d', strtotime('-1 year'));
   $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $result = db_select('commits_digest', 'c')
             ->fields('c')
-            ->condition('commit_date', $start_date, '>=')
             ->condition('commit_date', $end_date, '<=')
             ->orderBy('commit_date', 'DESC')
             ->execute();       

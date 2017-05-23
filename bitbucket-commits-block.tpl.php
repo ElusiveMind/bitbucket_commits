@@ -11,16 +11,16 @@
   <?php echo $graph; ?>
   <div class="statistics">
     <div class="total-commits">
-      <h3>Total Commits</h3>
       <p class="commits-longest-current"><?php echo $total_commits;?></p>
+      <h3>Total Commits<br />Past Year</h3>
     </div>
     <div class="longest-streak">
-      <h3>Longest Daily Streak</h3>
       <p class="commits-longest-current"><?php echo $max_streak;?></p>
+      <h3>Longest Historical<br />Daily Streak</h3>
     </div>
     <div class="current-streak">
-      <h3>Current Daily Streak</h3>
       <p class="commits-longest-current"><?php echo $current_streak;?></p>
+      <h3>Current Daily<br />Commit Streak</h3>
     </div>
     <div class="clear"></div>
     
