@@ -962,7 +962,7 @@ function bitbucket_commits_theme($existing, $type, $theme, $path) {
       'variables' => array('end_date' => NULL, 'color_scheme' => NULL, 'color1' => NULL, 'color2' => NULL, 'color3' => NULL, 'color4' => NULL),
     ),
     'bitbucket_commits_block' => array(
-      'variables' => array('graph' => NULL, 'lines_added' => NULL, 'lines_removed' => NULL, 'commits' => NULL, 'max_streak' => NULL, 'current_streak' => NULL, 'total_commits' => NULL, 'line_stats' => NULL),
+      'variables' => array('graph' => NULL, 'less_more' => NULL, 'lines_added' => NULL, 'lines_removed' => NULL, 'commits' => NULL, 'max_streak' => NULL, 'current_streak' => NULL, 'total_commits' => NULL, 'line_stats' => NULL),
       'template' => 'bitbucket-commits-block',
     ),
   );
@@ -1043,7 +1043,6 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
   $cdate = array();
   $ccolor = array();
-  $current_month = date('M');
   foreach ($graph as $date => $data) {
     if (date('l', strtotime($date)) == 'Sunday') {
       if ($position > 0) {
@@ -1128,7 +1127,7 @@ function bitbucket_commit_year_box_graph($end_date, $theme_color_scheme = NULL, 
 
   // To prevent months from overlapping. If the two months are within two rows of each
   // other, then the first one will be deleted.
-  if (($month_header[0]['x']+26) == $month_header[1]['x']) {
+  if ((($month_header[0]['x']+26) == $month_header[1]['x']) || (($month_header[0]['x']+13) == $month_header[1]['x'])) {
       array_shift($month_header);
   }
 
@@ -1438,8 +1437,61 @@ function bitbucket_commits_block_html() {
     $lines_added = theme('bitbucket_commits_lines_added');
     $lines_removed = theme('bitbucket_commits_lines_removed');
   }
+
+  // Matrix of our standard colors.
+  $color['grey'] = array('#EAEAEA', '#C0C0C0', '#A0A0A0', '#606060', '#202020');
+  $color['red'] = array('#EAEAEA', '#FFC0C0', '#FF9090', '#FF6060', '#FF2020');
+  $color['green'] = array('#EAEAEA', '#C0D0C0', '#A0D0A0', '#60D060', '#20D020');
+  $color['blue'] = array('#EAEAEA', '#C0C0FF', '#A0A0FF', '#6060FF', '#2020FF');
+  $color['yellow'] = array('#EAEAEA', '#DDDD20', '#CCCC20', '#BBBB20', '#AAAA20');
+  $color['orange'] = array('#EAEAEA', '#fce2b4', '#fbd38e', '#fcc35f', '#feae22');
+  $color['brown'] = array('#EAEAEA', '#d2bc97', '#be9d63', '#a58246', '#9d6400');
+  $color['purple'] = array('#EAEAEA', '#fcd5f7', '#fca8f1', '#fd68ea', '#fd2de2');
+  $color['pink'] = array('#EAEAEA', '#ffd7eb', '#febcdd', '#fc8ec5', '#FF69B4');
+  $color['github'] = array('#EAEAEA', '#cde372', '#7bbd52', '#389631', '#1a571b');
+
+  // If the custom color is provided in our UI, then assign the colors to our color
+  // scheme for processing.
+  $color['bitbucket_custom'] = array(
+    variable_get('bitbucket_activity_custom_color1', NULL),
+    variable_get('bitbucket_activity_custom_color2', NULL),
+    variable_get('bitbucket_activity_custom_color3', NULL),
+    variable_get('bitbucket_activity_custom_color4', NULL),
+    variable_get('bitbucket_activity_custom_color5', NULL),
+  );
+  $color['github_custom'] = array(
+    variable_get('bitbucket_github_activity_custom_color1', NULL),
+    variable_get('bitbucket_github_activity_custom_color2', NULL),
+    variable_get('bitbucket_github_activity_custom_color3', NULL),
+    variable_get('bitbucket_github_activity_custom_color4', NULL),
+    variable_get('bitbucket_github_activity_custom_color5', NULL),
+  );
+
+  // Our color key
+  $bitbucket_color = variable_get('bitbucket_activity_color_scheme', 'green');
+  $github_color = variable_get('bitbucket_github_activity_color_scheme', 'green');
+  foreach (array('bitbucket', 'github') as $repository) {
+    $color_scheme = ($repository == 'bitbucket') ? $bitbucket_color : $github_color;
+    if ($color_scheme == 'custom') {
+      if ($repository == 'bitbucket') {
+        $color_scheme = 'bitbucket_custom';
+      }
+      else {
+        $color_scheme = 'github_custom';
+      }
+    }
+    $ccolor[$repository] = $color_scheme;
+  }
+  $less_more = '<div class="bitbucket-statistics" style="padding-right: 30px; font-size: 9pt; text-align: right;">Less&nbsp;<svg width="80" height="11" class=""><g transform="translate(0,0)"> ';
+  for ($i=4; $i>=0; $i--) {
+    $fill_color = bitbucket_commits_mix_colors($color[$ccolor['github']][$i], $color[$ccolor['bitbucket']][$i], $ccolor['github'], $ccolor['bitbucket']);
+    $less_more .= '<rect class="day" width="11" height="11" x="' . ((11 * $i) + (5 * $i)) . '" y="0" fill="'.$fill_color.'"></rect>';
+  }
+  $less_more .= ' </g></svg>&nbsp;More</div>';
+
+  // Display the graphs and our statistics
   $graph =  theme('bitbucket_commits_block', 
-    ['graph' => $graph, 'commits' => $commits, 'line_stats' => $line_stats, 'lines_added' => $lines_added, 
+    ['graph' => $graph, 'less_more' => $less_more, 'commits' => $commits, 'line_stats' => $line_stats, 'lines_added' => $lines_added, 
      'lines_removed' => $lines_removed, 'max_streak' => $max_streak, 
      'current_streak' => $current_streak, 'total_commits' => $total_commits]);
   return $graph;
@@ -1450,9 +1502,11 @@ function bitbucket_commits_block_html() {
  */
 function bitbucket_commits_sequential_streak() {
   $end_date = $today = date('Y-m-d');
+  $start_date = date('Y-m-d', strtotime('-1 year'));
   $yesterday =  date('Y-m-d', strtotime('yesterday', time()));
   $result = db_select('commits_digest', 'c')
             ->fields('c')
+            ->condition('commit_date', $start_date, '>=')
             ->condition('commit_date', $end_date, '<=')
             ->orderBy('commit_date', 'DESC')
             ->execute();       
@@ -1486,9 +1540,9 @@ function bitbucket_commits_sequential_streak() {
  */
 function bitbucket_commits_check_sequential($sequential, $max_sequential) {
   // Compensate for the day missed when the streak ends.
-  if ($sequential > 0) {
-    $sequential++;
-  }
+  //if ($sequential > 0) {
+  //  $sequential++;
+  //}
   if ($sequential > $max_sequential) {
     $max_sequential = $sequential;
   }
@@ -1590,5 +1644,9 @@ function bitbucket_commits_mix_colors($color1, $color2, $base1, $base2) {
     $add = ($c1 + $c2) / 2;
     $color3[$i] = dechex($add);
   }
-  return '#' . join('', $color3);
+  $color = join('', $color3);
+  while (strlen($color) < 6) {
+    $color = '0' . $color;
+  }
+  return '#' . $color;
 }
