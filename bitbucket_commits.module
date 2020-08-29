@@ -739,7 +739,7 @@ function _bitbucket_commits_github_retrieve($drush = FALSE) {
         drupal_set_message('No repository named ' . $repo . '.', 'error');
         break;
       }
-      if (count($json) > 0) {
+      else {
         foreach ($json as $commit) {
           if (!array_key_exists($repo, $repositories)) {
             $repository_information = bitbucket_commits_github_get_repository_information($repo, $username, $password);
